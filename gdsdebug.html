@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Solver Debug</title>
+</head>
+<body>
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="death-msg" style="display:none"></div>
+    <div id="attempt-display" style="display:none"></div>
+    <div id="game-over" class="hidden"></div>
+    <div id="flash-msg" class="hidden"></div>
+    <audio id="bg-music" loop></audio>
+    <script src="levelData.js"></script>
+    <script src="game.js"></script>
+    <script>
+    const out = [];
+    let lastKiller = null;
+    Player.prototype.die = function () { this.isDead = true; };
+    Player.prototype.handleObjectEffect = function (obj) {
+        switch (obj.type) {
+            case 'PORTAL_SHIP': this.mode = 'SHIP'; break;
+            case 'PORTAL_CUBE': this.mode = 'CUBE'; break;
+            case 'PORTAL_GRAVITY_UP': this.gravity = -1; break;
+            case 'PORTAL_GRAVITY_DOWN': this.gravity = 1; break;
+            case 'PAD_YELLOW':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.YELLOW * this.gravity; }
+                break;
+            case 'PAD_PINK':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.PINK * this.gravity; }
+                break;
+            case 'PAD_RED':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.RED * this.gravity; }
+                break;
+        }
+    };
+
+    let padFires = 0;
+    const patchedHandle = Player.prototype.handleObjectEffect;
+    Player.prototype.handleObjectEffect = function (obj) {
+        if (obj.type.indexOf('PAD') === 0) {
+            padFires++;
+            out.push('   >> PAD FIRE ' + obj.type + '@' + obj.x + ' bit=' + obj._bit +
+                ' py=' + this.y.toFixed(1) + ' px=' + (this.x + levelX).toFixed(1) + ' vy=' + this.vy.toFixed(2));
+        }
+        patchedHandle.call(this, obj);
+    };
+
+    const origCollide = Player.prototype.collideBlock;
+    Player.prototype.collideBlock = function (obj, px, py, ps) {
+        const preDead = this.isDead;
+        origCollide.call(this, obj, px, py, ps);
+        if (!preDead && this.isDead) lastKiller = 'BLOCK@' + obj.x + ',' + obj.y;
+    };
+    const origSpike = Player.prototype.spikeHit;
+    Player.prototype.spikeHit = function (obj, px, py, ps) {
+        const r = origSpike.call(this, obj, px, py, ps);
+        if (r) lastKiller = 'SPIKE@' + obj.x + ',' + obj.y;
+        return r;
+    };
+
+    // URL hash: #<levelIdx>
+    const IDX = parseInt((location.hash || '#5').slice(1)) || 0;
+    const LAYER_CAP = 1500;
+
+    levelData = LEVELS[IDX];
+    currentSpeed = levelData.speed;
+    const snap0 = JSON.parse(JSON.stringify(levelData.objects));
+    const allSorted = [...snap0].sort((a, b) => a.x - b.x);
+    let bitSeq = 0;
+    allSorted.forEach(o => { if (o.type.indexOf('PAD') === 0) o._bit = 1 << (bitSeq++); });
+    const vx = currentSpeed;
+
+    function mk(src) {
+        const p = new Player();
+        p.x = src.x; p.y = src.y; p.vy = src.vy; p.mode = src.mode;
+        p.gravity = src.gravity; p.isGrounded = src.isGrounded;
+        p.jumpBuffer = src.jumpBuffer; p.padMask = src.padMask || 0;
+        p.speedMultiplier = src.speedMultiplier; p.size = src.size;
+        p.prevY = src.prevY;
+        return p;
+    }
+    function keyOf(p) {
+        return Math.round(p.y / 2) + '|' + Math.round(p.vy * 2) + '|' + p.mode + '|' + p.gravity + '|' +
+               (p.isGrounded ? 1 : 0) + '|' + p.jumpBuffer + '|' + p.padMask;
+    }
+
+    const start = new Player();
+    start.x = 100; start.y = GROUND_Y - TILE_SIZE; start.padMask = 0;
+    let layer = new Map();
+    layer.set(keyOf(start), { st: start });
+
+    let capHits = 0;
+    for (let f = 0; ; f++) {
+        const baseLX = f * vx;
+        const next = new Map();
+        const pxMid = 100 + baseLX;
+        let a = 0, b = allSorted.length;
+        while (a < b) { const m = (a + b) >> 1; if (allSorted[m].x + 60 < pxMid - 420) a = m + 1; else b = m; }
+        let c = a;
+        while (c < allSorted.length && allSorted[c].x < pxMid + 420) c++;
+        const backup = levelData.objects;
+        levelData.objects = allSorted.slice(a, c);
+
+        const deaths = [];
+        for (const [k, node] of layer) {
+            const m0 = node.st.mode;
+            const actsToTry = (m0 === 'SHIP' || m0 === 'WAVE') ? [0, 1] :
+                              node.st.isGrounded ? [0, 1, 2, 3, 4] : [0];
+            for (const act of actsToTry) {
+                const st = mk(node.st);
+                levelX = baseLX;
+                lastKiller = null;
+                let died = false;
+                for (let s = 0; s < 4; s++) {
+                    if ((m0 === 'SHIP' || m0 === 'WAVE') && act === 1) st.jump(true);
+                    if (s === act - 1) st.jump(true);
+                    st.update(16.6 / 4);
+                    if (st.isDead) { died = true; break; }
+                }
+                levelX = baseLX;
+                if (died) { deaths.push('a' + act + '(y' + Math.round(node.st.y) + (node.st.isGrounded ? 'G' : '') + '):' + lastKiller); continue; }
+                const nk = keyOf(st);
+                if (!next.has(nk)) next.set(nk, { st });
+            }
+        }
+        levelData.objects = backup;
+
+        const vals = [...next.values()];
+        const groundSet = [...new Set(vals.filter(n => n.st.isGrounded).map(n => Math.round(n.st.y)))];
+        const modes = [...new Set(vals.map(n => n.st.mode))].join('/');
+        const padInSlice = levelData.objects.filter(o => o.type.indexOf('PAD') === 0).map(o => o.type + '@' + o.x).join(',');
+        const sample = vals.slice(0, 3).map(n => 'y' + n.st.y.toFixed(0) + '/v' + n.st.vy.toFixed(1) + '/m' + (n.st.padMask || 0)).join(' | ');
+        if (next.size > LAYER_CAP) {
+            let i = 0;
+            for (const kk of next.keys()) { if (++i > LAYER_CAP) { next.delete(kk); capHits++; } }
+        }
+        out.push('f=' + f + ' px=' + Math.round(pxMid) + ' n=' + next.size +
+            ' modes=' + modes +
+            (padInSlice ? ' pads=[' + padInSlice + ']' : '') +
+            (groundSet.length ? ' groundYs=[' + groundSet.join(',') + ']' : '') +
+            ' samp[' + sample + ']' +
+            (deaths.length ? ' deaths[' + deaths.length + ']=' + deaths.slice(0, 3).join(' ; ') : ''));
+        layer = next;
+        if (layer.size === 0) { out.push('EXTINCT at px=' + Math.round(pxMid)); break; }
+        if (baseLX >= levelData.endX) { out.push('REACHED END'); break; }
+    }
+    out.push('capHits=' + capHits);
+
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#000;color:#0f0;font-size:10px;padding:8px;white-space:pre-wrap;';
+    pre.textContent = out.join('\n');
+    document.body.appendChild(pre);
+    </script>
+</body>
+</html>

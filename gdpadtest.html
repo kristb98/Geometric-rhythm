@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>Pad Micro Test</title></head>
+<body>
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="death-msg" style="display:none"></div>
+    <div id="attempt-display" style="display:none"></div>
+    <div id="game-over" class="hidden"></div>
+    <div id="flash-msg" class="hidden"></div>
+    <audio id="bg-music" loop></audio>
+    <script src="levelData.js"></script>
+    <script src="game.js"></script>
+    <script>
+    const out = [];
+    Player.prototype.die = function () { this.isDead = true; };
+    Player.prototype.handleObjectEffect = function (obj) {
+        if (obj.type.indexOf('PAD') === 0) out.push('   >>> PAD FIRED ' + obj.type + '@' + obj.x);
+        switch (obj.type) {
+            case 'PORTAL_SHIP': this.mode = 'SHIP'; break;
+            case 'PORTAL_CUBE': this.mode = 'CUBE'; break;
+            case 'PORTAL_GRAVITY_UP': this.gravity = -1; break;
+            case 'PORTAL_GRAVITY_DOWN': this.gravity = 1; break;
+            case 'PAD_YELLOW': if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.YELLOW * this.gravity; } break;
+            case 'PAD_PINK': if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.PINK * this.gravity; } break;
+            case 'PAD_RED': if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.RED * this.gravity; } break;
+        }
+    };
+
+    const IDX = 1; // Back On Track
+    levelData = LEVELS[IDX];
+    currentSpeed = levelData.speed;
+    const snap0 = JSON.parse(JSON.stringify(levelData.objects));
+    let bitSeq = 0;
+    snap0.forEach(o => { if (o.type.indexOf('PAD') === 0) o._bit = 1 << (bitSeq++); });
+    // keep ONLY objects near the tower4 area so nothing else interferes
+    const near = snap0.filter(o => o.x >= 6850 && o.x <= 7400);
+    out.push('OBJECTS IN PLAY:');
+    near.forEach(o => out.push('   ' + o.type + '@' + o.x + ',' + o.y + ' size=' + o.size));
+    levelData.objects = near;
+
+    const p = new Player();
+    p.x = 100; p.y = GROUND_Y - TILE_SIZE; p.padMask = 0;
+
+    // teleport: we want px (=x+levelX) to start at PX0 grounded on filler top 457 -> py=427
+    const PX0 = parseFloat((location.hash || '#7048').slice(1)) || 7048;
+    levelX = PX0 - 100;
+    p.y = 427; p.vy = 0; p.isGrounded = true; p.prevY = 427;
+
+    out.push('START px=' + (p.x + levelX) + ' py=' + p.y);
+    p.jump(true);
+    for (let k = 1; k <= 120 && !p.isDead; k++) {
+        p.update(16.6 / 4);
+        const px = p.x + levelX;
+        out.push('k=' + k + ' px=' + px.toFixed(1) + ' py=' + p.y.toFixed(2) + ' vy=' + p.vy.toFixed(2) +
+            (p.isDead ? ' DEAD' : '') + (p.isGrounded ? ' G' : ''));
+    }
+    out.push(p.isDead ? 'RESULT: DIED' : 'RESULT: SURVIVED');
+
+    const pre = document.createElement('pre');
+    pre.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#000;color:#0f0;font-size:11px;';
+    pre.textContent = out.join('\n');
+    document.body.appendChild(pre);
+    </script>
+</body>
+</html>

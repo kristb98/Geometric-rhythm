@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometric Rhythm - Port Smoke</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="hud">
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+            <div id="score">0%</div>
+            <button id="mute-btn" title="Mute music">MUSIC: ON</button>
+        </div>
+
+        <div id="main-menu" class="overlay">
+            <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
+            <h1>GEOMETRIC RHYTHM</h1>
+            <div class="song-selector-row">
+                <label for="song-selector">SONG</label>
+                <select id="song-selector"></select>
+            </div>
+            <div class="menu-buttons">
+                <button id="play-btn">PLAY</button>
+                <button id="customize-btn">CUSTOMIZE</button>
+                <button id="shop-btn">SHOP</button>
+            </div>
+        </div>
+
+        <div id="level-menu" class="overlay hidden">
+            <div id="menu-topbar">
+                <button id="exit-levels-btn">← EXIT LEVELS</button>
+                <h1>SELECT LEVEL</h1>
+                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
+            </div>
+            <div id="level-grid"></div>
+        </div>
+
+        <div id="customize-menu" class="overlay hidden">
+            <div id="menu-topbar">
+                <button id="customize-back-btn">← BACK</button>
+                <h1>CUSTOMIZE</h1>
+                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
+            </div>
+            <div class="customize-tabs" id="customize-tabs"></div>
+            <div id="customize-grid"></div>
+        </div>
+
+        <div id="shop-menu" class="overlay hidden">
+            <div id="menu-topbar">
+                <button id="shop-back-btn">← BACK</button>
+                <h1>SHOP</h1>
+                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
+            </div>
+            <div class="customize-tabs" id="shop-tabs"></div>
+            <div id="shop-grid"></div>
+        </div>
+
+        <div id="game-over" class="overlay hidden">
+            <div class="panel">
+                <h2 id="death-msg">TRY AGAIN</h2>
+                <div id="attempt-display">ATTEMPT 1</div>
+                <div class="menu-buttons">
+                    <button id="restart-btn">REPLAY</button>
+                    <button id="menu-btn">LEVELS</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="level-complete" class="overlay hidden">
+            <div class="panel">
+                <h2>LEVEL COMPLETE!</h2>
+                <div id="complete-stars"></div>
+                <div id="complete-progress">100%</div>
+                <div id="complete-unlock" class="sub-note"></div>
+                <div class="menu-buttons">
+                    <button id="complete-replay-btn">REPLAY</button>
+                    <button id="complete-menu-btn">LEVELS</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="flash-msg" class="hidden"></div>
+    <audio id="bg-music" loop></audio>
+
+    <script src="levelData.js"></script>
+    <script src="game.js"></script>
+    <script>
+    // ===== Smoke test driver =====
+    const results = [];
+    function check(name, cond) {
+        results.push({ name, ok: !!cond });
+        if (!cond) console.error('FAIL: ' + name);
+    }
+    window.__errs = [];
+    window.addEventListener('error', e => window.__errs.push(String(e.message)));
+    window.addEventListener('unhandledrejection', e => window.__errs.push('REJ: ' + String(e.reason)));
+
+    const run = () => {
+        try {
+            check('LEVELS 6', LEVELS.length === 6);
+            check('SM objects real', LEVELS[0].objects.length > 50);
+            check('no COIN objects', LEVELS.every(l => l.objects.filter(o => o.type === 'COIN').length === 0));
+            check('endX real', LEVELS.every(l => l.endX > 5000));
+            check('GD GRAVITY (moderate-easy)', GRAVITY === 0.82);
+            check('GD JUMP (moderate-easy)', JUMP_FORCE === -12.5);
+            check('speeds valid', LEVELS.every(l => l.speed >= 5 && l.speed <= 8));
+
+            // GD gameplay elements
+            const allPads = LEVELS.flatMap(l => l.objects).filter(o => o.type.startsWith('PAD_'));
+            check('pads exist', allPads.length > 0);
+            check('SM has pads', LEVELS[0].objects.filter(o => o.type.startsWith('PAD_')).length > 0);
+            const allPortals = LEVELS.flatMap(l => l.objects).filter(o => o.type.startsWith('PORTAL_'));
+            check('portals exist', allPortals.length > 0);
+            check('SM has ship portals', LEVELS[0].objects.filter(o => o.type === 'PORTAL_SHIP').length >= 2);
+            check('has saws or move_saws', LEVELS.flatMap(l => l.objects).filter(o => o.type === 'SAW' || o.type === 'MOVE_SAW').length > 0);
+
+            // Physics simulation checks (bypass collisions)
+            const saveObjs = levelData.objects;
+            levelData.objects = [];
+            const simCube = new Player();
+            simCube.x = -1000; simCube.y = 470; simCube.vy = 0; simCube.mode = 'CUBE'; simCube.isGrounded = true;
+            simCube.jump();
+            let apex = 0;
+            for (let i = 0; i < 120; i++) { simCube.update(16.6); apex = Math.max(apex, 470 - simCube.y); }
+            check('cube jump apex ~95.3 (moderate)', Math.abs(apex - 95.3) < 8);
+
+            const simPad = new Player();
+            simPad.x = -1000; simPad.y = 470; simPad.vy = 0; simPad.mode = 'CUBE';
+            simPad.vy = -PAD_FORCE.YELLOW;
+            apex = 0;
+            for (let i = 0; i < 120; i++) { simPad.update(16.6); apex = Math.max(apex, 470 - simPad.y); }
+            check('yellow pad apex ~136.8 (moderate)', Math.abs(apex - 136.8) < 8);
+
+            const simRed = new Player();
+            simRed.x = -1000; simRed.y = 470; simRed.vy = 0; simRed.mode = 'CUBE';
+            simRed.vy = -PAD_FORCE.RED;
+            apex = 0;
+            for (let i = 0; i < 160; i++) { simRed.update(16.6); apex = Math.max(apex, 470 - simRed.y); }
+            check('red pad apex ~243.9 (moderate)', Math.abs(apex - 243.9) < 12);
+
+            const simShip = new Player();
+            simShip.x = -1000; simShip.y = 400; simShip.vy = 0; simShip.mode = 'SHIP';
+            const y0 = simShip.y;
+            for (let i = 0; i < 60; i++) { simShip.update(16.6); simShip.jump(true); }
+            check('ship rises when held', simShip.y < y0 - 60);
+
+            const simShip2 = new Player();
+            simShip2.x = -1000; simShip2.y = 300; simShip2.vy = 0; simShip2.mode = 'SHIP';
+            const y1 = simShip2.y;
+            for (let i = 0; i < 60; i++) { simShip2.update(16.6); }
+            check('ship falls when released', simShip2.y > y1 + 30);
+            levelData.objects = saveObjs;
+
+            check('song selector exists', !!document.getElementById('song-selector'));
+            check('song selector has options', document.getElementById('song-selector').children.length >= 2);
+            check('no initial errs', window.__errs.length === 0);
+            startLevel(0);
+            setTimeout(() => {
+                try {
+                    check('game running', gameState === 'PLAYING' || gameState === 'GAMEOVER');
+                    check('levelX advanced', levelX > 0);
+                    check('objects drawn (no draw errors)', window.__errs.length === 0);
+                } catch (e) { check('run2 err', false); window.__errs.push(e.message); }
+                finish();
+            }, 400);
+        } catch (e) {
+            window.__errs.push('run: ' + e.message);
+            check('main block ok', false);
+            finish();
+        }
+    };
+
+    function finish() {
+        const pass = results.filter(r => r.ok).length;
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#000;color:#0f0;font-size:12px;padding:8px;white-space:pre-wrap;max-height:90vh;overflow:auto;';
+        pre.textContent = 'PASS ' + pass + '/' + results.length + '\n' + results.map(r => (r.ok ? 'PASS' : 'FAIL') + ': ' + r.name).join('\n') + '\n\nerrs: ' + JSON.stringify(window.__errs);
+        document.body.appendChild(pre);
+    }
+
+    setTimeout(run, 1200);
+    </script>
+</body>
+</html>

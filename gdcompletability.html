@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GD Completablility Simulation</title>
+</head>
+<body>
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="death-msg" style="display:none"></div>
+    <div id="attempt-display" style="display:none"></div>
+    <div id="game-over" class="hidden"></div>
+    <div id="flash-msg" class="hidden"></div>
+    <audio id="bg-music" loop></audio>
+    <script src="levelData.js"></script>
+    <script src="game.js"></script>
+    <script>
+    // ===== Receding-horizon autopilot driving the real engine =====
+    // gameState stays MENU so game.js's rAF loop stays inert.
+    const results = [];
+    window.__errs = [];
+    window.addEventListener('error', e => window.__errs.push(String(e.message) + ' @' + (e.lineno || '?')));
+
+    let hz = [];          // solid hazards sorted by x
+    let allSorted = [];   // every object sorted by x
+    let saved = null;
+    const FULL_OBJS = () => levelObjectsSnapshot;
+
+    function prepLevel(idx) {
+        levelData = LEVELS[idx];
+        currentSpeed = levelData.speed;
+        levelObjectsSnapshot = JSON.parse(JSON.stringify(levelData.objects));
+        levelData.objects = JSON.parse(JSON.stringify(levelObjectsSnapshot));
+        hz = levelData.objects
+            .filter(o => (o.type === 'BLOCK' && o.y < 468) || o.type === 'SPIKE')
+            .sort((a, b) => a.x - b.x);
+        allSorted = [...levelData.objects].sort((a, b) => a.x - b.x);
+        levelX = 0;
+        player.reset();
+        player.x = 100;
+        player.y = GROUND_Y - TILE_SIZE;
+    }
+
+    function hazardWithin(px, range) {
+        let lo = 0, hi = hz.length;
+        while (lo < hi) { const m = (lo + hi) >> 1; if (hz[m].x + 30 < px - range) lo = m + 1; else hi = m; }
+        return lo < hz.length && hz[lo].x < px + range;
+    }
+
+    function snap() {
+        saved = { x: player.x, y: player.y, vy: player.vy, m: player.mode, g: player.gravity, gr: player.isGrounded, lx: levelX };
+    }
+    function restore() {
+        player.x = saved.x; player.y = saved.y; player.vy = saved.vy; player.mode = saved.m;
+        player.gravity = saved.g; player.isGrounded = saved.gr; levelX = saved.lx; player.isDead = false;
+    }
+
+    // simulate `frames` steps with an action; returns distance gained; state restored after
+    function roll(action, frames) {
+        const px0 = saved.x + saved.lx;
+        const lo = px0 - 120, hi = px0 + currentSpeed * frames * 2 + 240;
+        let a = 0, b = allSorted.length;
+        while (a < b) { const m = (a + b) >> 1; if (allSorted[m].x + 60 < lo) a = m + 1; else b = m; }
+        let c = a;
+        while (c < allSorted.length && allSorted[c].x < hi) c++;
+        const windowArr = allSorted.slice(a, c);
+        const backup = levelData.objects;
+        levelData.objects = windowArr.length ? windowArr : backup.slice(0, 1);
+        if (action === 'JUMP') player.jump(true);
+        let f = 0;
+        for (; f < frames; f++) {
+            if (action === 'HOLD') player.jump(true);
+            player.update(16.6);
+            if (player.isDead || levelX >= levelData.endX) break;
+        }
+        const d = levelX - saved.lx;
+        levelData.objects = backup;
+        restore();
+        return d;
+    }
+
+    function cubeFrame() {
+        const px = player.x + levelX;
+        if (!hazardWithin(px, 280)) return;
+        if (!player.isGrounded) return;
+        snap();
+        const dNone = roll(null, 55);
+        const dJump = roll('JUMP', 55);
+        if (dJump > dNone + 0.5) player.jump(true);
+    }
+
+    function shipFrame() {
+        const px = player.x + levelX;
+        if (!hazardWithin(px, 260)) return;
+        snap();
+        const dRel = roll(null, 42);
+        const dHold = roll('HOLD', 42);
+        if (dHold > dRel + 0.5) player.jump(true);
+    }
+
+    function playLevel(idx) {
+        prepLevel(idx);
+        const maxFrames = Math.floor(levelData.endX / currentSpeed) + 4000;
+        for (let f = 0; f < maxFrames; f++) {
+            if (player.mode === 'CUBE' || player.mode === 'ROBOT') cubeFrame();
+            else if (player.mode === 'SHIP') shipFrame();
+            player.update(16.6);
+            if (player.isDead) {
+                const px = player.x + levelX;
+                const near = [];
+                for (const o of levelData.objects) {
+                    if (Math.abs(o.x - px) < 140 && Math.abs(o.y - player.y) < 170) near.push(o.type + '@' + o.x + ',' + o.y);
+                }
+                return { status: 'DEAD', pct: Math.round((levelX / levelData.endX) * 100), mode: player.mode, y: Math.round(player.y), px: Math.round(px), grav: player.gravity, near: near.slice(0, 12) };
+            }
+            if (levelX >= levelData.endX) {
+                return { status: 'WIN', pct: 100 };
+            }
+        }
+        return { status: 'TIMEOUT', pct: Math.round((levelX / levelData.endX) * 100), mode: player.mode, y: Math.round(player.y), px: Math.round(player.x + levelX) };
+    }
+
+    function run() {
+        try {
+            for (let i = 0; i < LEVELS.length; i++) results.push(playLevel(i));
+        } catch (e) {
+            window.__errs.push('run: ' + e.message);
+        }
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#000;color:#0f0;font-size:13px;padding:8px;white-space:pre-wrap;';
+        pre.textContent = 'errs: ' + JSON.stringify(window.__errs) + '\n' + JSON.stringify(results.map(r => ({ name: LEVELS[results.indexOf(r)].name, ...r })), null, 1);
+        document.body.appendChild(pre);
+    }
+    setTimeout(run, 800);
+    </script>
+</body>
+</html>

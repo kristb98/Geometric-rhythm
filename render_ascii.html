@@ -1,0 +1,42 @@
+﻿<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><pre id="out"></pre>
+<script src="levelData.js"></script>
+<script>
+try {
+  var L=LEVELS[0];
+  var x0=4150, x1=4780, GROUND=500;
+  var cell=30;
+  var W=Math.ceil((x1-x0)/cell);
+  var H=13;
+  var grid=[];
+  for(var r=0;r<H;r++){ grid.push([]); for(var c=0;c<W;c++){ grid[r].push('.'); } }
+  function setC(cx, ytop, ybot){
+    var c=Math.floor((cx-x0)/cell);
+    if(c<0||c>=W) return;
+    var topB=Math.floor((GROUND-ytop)/cell), botB=Math.floor((GROUND-ybot)/cell);
+    for(var b=topB;b<=botB;b++){ if(b>=0&&b<H){ grid[b][c]='#'; } }
+  }
+  for(var i=0;i<L.objects.length;i++){
+    var o=L.objects[i], t=o.type;
+    if(o.x<x0||o.x>x1) continue;
+    var c=Math.floor((o.x-x0)/cell);
+    if(c<0||c>=W) continue;
+    if(t==='BLOCK'){ setC(o.x, o.y+o.size/2, o.y-o.size/2); }
+    else if(t.indexOf('SPIKE')===0){ var rr=Math.floor((GROUND-(o.y+o.size/2))/cell); if(rr>=0&&rr<H) grid[rr][c]='^'; }
+    else if(t==='PAD_YELLOW'){ var rr=Math.floor((GROUND-o.y)/cell); if(rr>=0&&rr<H) grid[rr][c]='Y'; }
+    else if(t==='PAD_PINK'){ var rr=Math.floor((GROUND-o.y)/cell); if(rr>=0&&rr<H) grid[rr][c]='P'; }
+    else if(t==='PAD_RED'){ var rr=Math.floor((GROUND-o.y)/cell); if(rr>=0&&rr<H) grid[rr][c]='R'; }
+    else if(t.indexOf('PORTAL')===0){ var rr=Math.floor((GROUND-o.y)/cell); if(rr>=0&&rr<H) grid[rr][c]='|'; }
+  }
+  var cnt=0, dbg=[];
+  for(var i=0;i<L.objects.length;i++){
+    var o=L.objects[i], t=o.type;
+    if(o.x>=x0&&o.x<=x1){ cnt++; if(cnt<=3) dbg.push(o.type+'@'+o.x+','+o.y); }
+  }
+  var lines=[];
+  lines.push('SM total='+L.objects.length+' inrange='+cnt+' '+(dbg.join(' | ')));
+  lines.push('SM x'+x0+'-'+x1+'  apex ~4 blocks above ground');
+  for(var r=H-1;r>=0;r--){ lines.push('b'+('0'+r).slice(-2)+' '+grid[r].join('')); }
+  document.getElementById('out').textContent=lines.join('\n');
+} catch(e){ document.getElementById('out').textContent='ERR '+e.message+' | '+(e.stack||''); }
+</script></body></html>
+

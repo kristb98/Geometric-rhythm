@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>GD Exact Completeness Solver</title>
+</head>
+<body>
+    <canvas id="gameCanvas" width="960" height="540"></canvas>
+    <div id="death-msg" style="display:none"></div>
+    <div id="attempt-display" style="display:none"></div>
+    <div id="game-over" class="hidden"></div>
+    <div id="flash-msg" class="hidden"></div>
+    <audio id="bg-music" loop></audio>
+    <script src="levelData.js"></script>
+    <script src="game.js"></script>
+    <script>
+    // ===== Exact BFS solver over deterministic engine physics =====
+    // Run one level: gdsolver.html#0 .. #5   (all: gdsolver.html#all)
+    const results = [];
+    window.__errs = [];
+    window.addEventListener('error', e => window.__errs.push(String(e.message) + ' @' + (e.lineno || '?')));
+
+    Player.prototype.die = function () { this.isDead = true; };
+    Player.prototype.handleObjectEffect = function (obj) {
+        switch (obj.type) {
+            case 'PORTAL_SHIP': this.mode = 'SHIP'; break;
+            case 'PORTAL_BALL': this.mode = 'BALL'; break;
+            case 'PORTAL_UFO': this.mode = 'UFO'; break;
+            case 'PORTAL_WAVE': this.mode = 'WAVE'; break;
+            case 'PORTAL_SWING': this.mode = 'SWING'; break;
+            case 'PORTAL_CUBE': this.mode = 'CUBE'; break;
+            case 'PORTAL_GRAVITY_UP': this.gravity = -1; break;
+            case 'PORTAL_GRAVITY_DOWN': this.gravity = 1; break;
+            case 'SIZE_MINI': this.size = 0.6; break;
+            case 'SIZE_BIG': this.size = 1; break;
+            case 'SPEED_05': currentSpeed = levelData.speed * 0.5; break;
+            case 'SPEED_1': currentSpeed = levelData.speed; break;
+            case 'SPEED_2': currentSpeed = levelData.speed * 2; break;
+            case 'PAD_YELLOW':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.YELLOW * this.gravity; }
+                break;
+            case 'PAD_PINK':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.PINK * this.gravity; }
+                break;
+            case 'PAD_RED':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.RED * this.gravity; }
+                break;
+            case 'PAD_JUMP':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -PAD_FORCE.YELLOW * this.gravity; }
+                break;
+            case 'ORB_JUMP':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = JUMP_FORCE * 1.2 * this.gravity; }
+                break;
+            case 'ORB_GRAVITY':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.gravity *= -1; }
+                break;
+            case 'ORB_BLACK':
+                if (!(this.padMask & obj._bit)) { this.padMask |= obj._bit; this.vy = -JUMP_FORCE * 1.5 * this.gravity; }
+                break;
+        }
+    };
+
+    const LAYER_CAP = 4000;
+    let allSorted = [], vxFrame = 0, lastKiller = null, capHits = [], dbgLog = [];
+
+    const origCollide = Player.prototype.collideBlock;
+    Player.prototype.collideBlock = function (obj, px, py, ps) {
+        const preDead = this.isDead;
+        origCollide.call(this, obj, px, py, ps);
+        if (!preDead && this.isDead) lastKiller = 'BLOCK@' + obj.x + ',' + obj.y;
+    };
+    const origSpikeFn = Player.prototype.spikeHit;
+    Player.prototype.spikeHit = function (obj, px, py, ps) {
+        const r = origSpikeFn.call(this, obj, px, py, ps);
+        if (r) lastKiller = 'SPIKE@' + obj.x + ',' + obj.y;
+        return r;
+    };
+    let padFireLog = [];
+    const preHarnessHandle = Player.prototype.handleObjectEffect;
+    Player.prototype.handleObjectEffect = function (obj) {
+        if (obj.type.indexOf('PAD') === 0 && obj.x > 7000 && obj.x < 7200) {
+            padFireLog.push('FIRE ' + obj.type + '@' + obj.x + ' px=' + (this.x + levelX).toFixed(1) + ' py=' + this.y.toFixed(1));
+        }
+        preHarnessHandle.call(this, obj);
+    };
+
+    function copyState(src) {
+        const p = new Player();
+        p.x = src.x; p.y = src.y; p.vy = src.vy; p.mode = src.mode;
+        p.gravity = src.gravity; p.isGrounded = src.isGrounded;
+        p.jumpBuffer = src.jumpBuffer; p.padMask = src.padMask;
+        p.speedMultiplier = src.speedMultiplier; p.size = src.size;
+        p.prevY = src.prevY;
+        p.pxOff = src.pxOff || 0;
+        return p;
+    }
+    function keyOf(p) {
+        // pxOff: sub-frame x offset from the frame-canonical position, quantized
+        // to the 1.3px physics-substep grid. Horizontal speed is constant, so
+        // the offset is invariant frame-to-frame; carrying it preserves the
+        // continuous player positions GD's tight windows require.
+        return Math.round(p.y / 2) + '|' + Math.round(p.vy * 2) + '|' + p.mode + '|' + p.gravity + '|' +
+               (p.isGrounded ? 1 : 0) + '|' + p.jumpBuffer + '|' + p.padMask + '|' + Math.round((p.pxOff || 0) / 1.3);
+    }
+
+    function solve(idx) {
+        capHits = []; dbgLog = [];
+        levelData = LEVELS[idx];
+        currentSpeed = levelData.speed;
+        levelObjectsSnapshot = JSON.parse(JSON.stringify(levelData.objects));
+        allSorted = [...levelObjectsSnapshot].sort((a, b) => a.x - b.x);
+        let bit = 1;
+        for (const o of allSorted) {
+            if (o.type.indexOf('PAD_') === 0) { o._bit = bit; bit *= 2; }
+        }
+
+        vxFrame = currentSpeed;
+        const start = new Player();
+        start.x = 100; start.y = GROUND_Y - TILE_SIZE; start.padMask = 0; start.pxOff = 0;
+
+        let layer = new Map();
+        layer.set(keyOf(start), { st: start, pk: null, act: null, pparent: null, ax: start.x });
+        let winNode = null;
+        const layers = [];
+        let winKey = null, winFrame = -1, winAct = null, winOff = 0, furthestX = 0;
+
+        const LAYER_DBG = location.hash.indexOf('dbg') >= 0;
+        const genSteps = [];   // substep count per generation, replayed verbatim
+        let coveredLX = 0;
+        for (let f = 0; f <= 30000 && winKey === null && layer.size > 0; f++) {
+            const baseLX = coveredLX;
+            const next = new Map();
+            const pxMid = 100 + baseLX;
+            const lo = pxMid - 420, hi = pxMid + 420;
+            let a = 0, b = allSorted.length;
+            while (a < b) { const m = (a + b) >> 1; if (allSorted[m].x + 60 < lo) a = m + 1; else b = m; }
+            let c = a;
+            while (c < allSorted.length && allSorted[c].x < hi) c++;
+            const backup = levelData.objects;
+            levelData.objects = allSorted.slice(a, c);
+
+            let dbgDeaths = null;
+            if (LAYER_DBG && baseLX > 11150 && baseLX < 11630) dbgDeaths = [];
+            let capDropped = 0;
+
+            // Branching gate: presses only matter near interactive geometry
+            // (max jump span ~139px -> 150px lookahead). The gate decides
+            // pxOff re-anchoring; actions themselves branch every generation.
+            // pxOff anchors a state's true x to its generation-canonical x so
+            // mid-tick landings can press at their exact landing spot next
+            // generation instead of waiting for the frame boundary (tight pad
+            // windows like BoT's tower pad need this).
+            const pxHere = 100 + baseLX;
+            let nearStuff = false;
+            for (const o of levelData.objects) {
+                if (o.x > pxHere + 150) break;
+                if (o.x >= pxHere - 40 && !(o.type === 'BLOCK' && o.y >= 468)) { nearStuff = true; break; }
+            }
+            const NSUB = 4;
+            const dxLayer = currentSpeed;
+            genSteps.push(NSUB);
+
+            const pushChild = (stVar, actTag, parentNode) => {
+                if (baseLX + dxLayer >= levelData.endX) {
+                    if (winKey === null) {
+                        winKey = (parentNode && parentNode.pk) || '__root__';
+                        winFrame = f; winAct = actTag; winOff = 0;
+                        winNode = { st: stVar, act: actTag, pparent: parentNode || null, ax: stVar.x + baseLX };
+                    }
+                    return;
+                }
+                if (baseLX > furthestX) furthestX = baseLX;
+                const nk = keyOf(stVar);
+                if (!next.has(nk)) {
+                    if (next.size < LAYER_CAP) next.set(nk, { st: stVar, pk: parentNode ? parentNode.pk : null, act: actTag, pparent: parentNode || null, ax: stVar.x + baseLX });
+                    else capDropped++;
+                }
+            };
+
+            for (const [k, node] of layer) {
+                const m0 = node.st.mode;
+                const actsToTry = (m0 === 'SHIP' || m0 === 'WAVE') ? [0, 1] :
+                                  node.st.isGrounded ? [0, 1, 2, 3, 4] : [0];
+                for (const act of actsToTry) {
+                    const st = copyState(node.st);
+                    levelX = baseLX;
+                    lastKiller = null;
+                    let died = false;
+                    let forked = false;
+                    for (let s = 0; s < NSUB; s++) {
+                        if (node.st.mode === 'SHIP' && act === 1) st.jump(true); // hold all ticks
+                        if (s === act - 1) st.jump(true);
+                        const wasG = st.isGrounded;
+                        st.update(16.6 / NSUB);
+                        // Reactive fork: landed mid-generation -> jump 1 or 2
+                        // ticks after touchdown (real GD accepts input every
+                        // tick; frame-anchored acts cannot express this).
+                        if (!forked && !wasG && st.isGrounded && nearStuff && s < NSUB - 1) {
+                            forked = true;
+                            for (const delay of [1, 2]) {
+                                const st2 = copyState(st);
+                                let died2 = false;
+                                for (let s2 = s + 1; s2 < NSUB; s2++) {
+                                    if (s2 === s + delay) st2.jump(true);
+                                    st2.update(16.6 / NSUB);
+                                    if (st2.isDead) { died2 = true; break; }
+                                }
+                                if (!died2) pushChild(st2, -(s * 10 + delay), node);
+                            }
+                        }
+                        if (st.isDead) { died = true; break; }
+                    }
+                    levelX = baseLX;
+                    if (died) { if (dbgDeaths) dbgDeaths.push('a' + act + '@y' + Math.round(node.st.y) + (node.st.isGrounded ? 'G' : '') + ':' + lastKiller); continue; }
+                    pushChild(st, act, node);
+                }
+                if (winKey !== null) break;
+            }
+            levelData.objects = backup;
+            layers.push(next);
+            coveredLX += dxLayer;
+            if (capDropped) capHits.push({ lx: Math.round(baseLX), dropped: capDropped });
+            if (dbgDeaths) dbgLog.push('f=' + f + ' lx=' + Math.round(baseLX) + ' in=' + layer.size + ' out=' + next.size +
+                (capDropped ? ' CAPDROP=' + capDropped : '') +
+                ' ys=[' + [...next.values()].map(n => Math.round(n.st.y)).slice(0, 10).join(',') + ']' +
+                ' offs=[' + [...new Set([...next.values()].map(n => Math.round((n.st.pxOff || 0) * 10) / 10))].slice(0, 12).join(',') + ']' +
+                (dbgDeaths.length ? ' D[' + dbgDeaths.slice(0, 5).join(';') + ']' : ''));
+            layer = next;
+            if (layer.size === 0) break;
+        }
+
+        if (winKey === null) {
+            const wx = 100 + furthestX;
+            const near = [];
+            for (const o of allSorted) {
+                if (Math.abs(o.x - wx) > 170 || (o.type === 'BLOCK' && o.y >= 468)) continue;
+                near.push(o.type + '@' + o.x + ',' + o.y);
+            }
+            return { status: 'UNSOLVABLE', pct: Math.round((furthestX / levelData.endX) * 100), wallX: Math.round(furthestX), capHits: capHits.length ? capHits.slice(-8) : undefined, dbg: dbgLog.length ? dbgLog.slice(-40) : undefined, padFires: padFireLog.length ? padFireLog.slice(-12) : undefined, near: near.slice(0, 16) };
+        }
+
+        // reconstruct press/release script by walking stored parent refs
+        // (dedup-merged maps make key-based lookup unreliable for replay)
+        const acts = [];
+        const pathStates = [];
+        let cur = winNode;
+        while (cur) { acts.push(cur.act); pathStates.push(cur); cur = cur.pparent; }
+        acts.reverse();
+        pathStates.reverse();
+
+        // replay script on pristine objects to confirm
+        levelData.objects = JSON.parse(JSON.stringify(levelObjectsSnapshot));
+        const rp = new Player();
+        rp.x = 100; rp.y = GROUND_Y - TILE_SIZE; rp.padMask = 0;
+        let ok = false;
+        let replayDiag = null;
+        {
+            let lxAcc = 0;
+            for (let f = 0; f <= winFrame + 4; f++) {
+                const nsub = genSteps[f] !== undefined ? genSteps[f] : 4;
+                levelX = lxAcc + winOff;
+                const act = f < acts.length ? acts[f] : 0;
+                const shipHold = (rp.mode === 'SHIP' && act === 1);
+                let landed = false, landS = -1;
+                for (let s = 0; s < nsub; s++) {
+                    if (shipHold) rp.jump(true);
+                    else if (act > 0) { if (s === act - 1) rp.jump(true); }
+                    else if (act < 0) {
+                        const rd = (-act) % 10;
+                        if (landed && s === landS + rd) rp.jump(true);
+                    }
+                    const wasG = rp.isGrounded;
+                    rp.update(16.6 / nsub);
+                    if (!landed && !wasG && rp.isGrounded) { landed = true; landS = s; }
+                    if (rp.isDead) break;
+                }
+                if (rp.isDead) break;
+                lxAcc += currentSpeed * nsub / 4;
+                if (lxAcc + winOff >= levelData.endX) { ok = true; break; }
+                if (pathStates[f + 1]) {
+                    const exp = pathStates[f + 1];
+                    if (Math.abs((rp.x + lxAcc) - exp.ax) > 1.5 || Math.abs(rp.y - exp.st.y) > 2.5 || rp.mode !== exp.st.mode || rp.isGrounded !== exp.st.isGrounded) {
+                        replayDiag = { f: f, expX: Math.round(exp.ax), gotX: Math.round(rp.x + lxAcc), expY: Math.round(exp.st.y), gotY: Math.round(rp.y), expMode: exp.st.mode, gotMode: rp.mode, expG: exp.st.isGrounded, gotG: rp.isGrounded, act: act };
+                        ok = false; break;
+                    }
+                }
+            }
+        }
+        return {
+            status: ok ? 'SOLVED' : 'REPLAY_MISMATCH',
+            frames: winFrame,
+            presses: acts.filter(a => a).length,
+            replayDiag: replayDiag
+        };
+    }
+
+    function run() {
+        const h = location.hash.replace('#', '');
+        const idxs = h === 'all' ? LEVELS.map((_, i) => i) : [parseInt(h || '0', 10)];
+        try {
+            for (const i of idxs) results.push({ name: LEVELS[i].name, ...solve(i) });
+        } catch (e) {
+            window.__errs.push('run: ' + e.message + ' | ' + (e.stack || '').split('\n')[1]);
+        }
+        const pre = document.createElement('pre');
+        pre.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#000;color:#0f0;font-size:13px;padding:8px;white-space:pre-wrap;';
+        pre.textContent = 'errs: ' + JSON.stringify(window.__errs) + '\n' + JSON.stringify(results, null, 1);
+        document.body.appendChild(pre);
+    }
+    setTimeout(run, 800);
+    </script>
+</body>
+</html>

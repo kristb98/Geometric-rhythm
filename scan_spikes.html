@@ -1,0 +1,38 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><pre id="out"></pre>
+<script src="levelData.js"></script>
+<script>
+// For each spike, find the block directly beneath (largest block-top <= spike center-y,
+// horizontally overlapping the spike's x). Report vertical offset of spike base vs block top.
+// Here obj.y is TOP-LEFT. A spike's "base" = obj.y + obj.size. A block's "top" = block.y.
+// Correct: base sits ~on block top => offset = base - blockTop, small (~0..2).
+var out=[];
+for(var li=0; li<LEVELS.length; li++){
+  var L=LEVELS[li];
+  var issues=[];
+  var total=0, ok=0;
+  L.objects.forEach(function(sp){
+    if(sp.type!=='SPIKE') return;
+    total++;
+    var base=sp.y+sp.size;           // spike bottom
+    var sx=sp.x, sxc=sp.x+sp.size;
+    var best=null, bestGap=1e9;
+    for(var i=0;i<L.objects.length;i++){
+      var b=L.objects[i];
+      if(b.type!=='BLOCK') continue;
+      if(b.x>=sxc || b.x+b.size<=sx) continue;       // horizontal overlap
+      if(b.y>=base) continue;                          // only blocks whose top is at/above spike base
+      var gap=base-b.y;                                // block top BELOW spike base? gap=base-bTop
+      if(gap>=0 && gap<bestGap){ bestGap=gap; best=b; }
+    }
+    if(best && bestGap>=0){
+      if(bestGap<=2) ok++;
+      else issues.push('SPIKE@'+Math.round(sp.x)+','+Math.round(sp.y)+' base='+Math.round(base)+' over BLOCK@'+Math.round(best.x)+','+Math.round(best.y)+' top='+Math.round(best.y)+' GAP='+Math.round(bestGap));
+    } else {
+      issues.push('SPIKE@'+Math.round(sp.x)+','+Math.round(sp.y)+' base='+Math.round(base)+' NO-BLOCK-BELOW');
+    }
+  });
+  out.push('LEVEL '+li+' '+L.name+' spikes='+total+' wellSeated='+ok);
+  issues.slice(0,25).forEach(function(s){ out.push('   '+s); });
+}
+document.getElementById('out').textContent=out.join('\n');
+</script></body></html>

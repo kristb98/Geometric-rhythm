@@ -1,0 +1,31 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><pre id="out"></pre>
+<script src="levelData.js"></script>
+<script>
+// Fine ASCII render: cell=15px. Show SM x[0,900], and mark BLOCK/SPIKE/PAD.
+var L=LEVELS[0];
+var x0=0,x1=900,cell=15,GROUND=500;
+var W=Math.ceil((x1-x0)/cell), H=Math.floor((GROUND-100)/cell)+1; // y 100..500
+var grid=[];
+for(var r=0;r<H;r++){grid.push([]);for(var c=0;c<W;c++){grid[r].push('.');}}
+function put(cx, r0, r1, ch){
+  var c=Math.floor((cx-x0)/cell);
+  if(c<0||c>=W)return;
+  for(var r=r0;r<=r1;r++){if(r>=0&&r<H)grid[r][c]=ch;}
+}
+for(var i=0;i<L.objects.length;i++){
+  var o=L.objects[i];
+  if(o.x<x0||o.x>x1)continue;
+  var c=Math.floor((o.x-x0)/cell);
+  var rc=Math.floor((GROUND-o.y)/cell);   // row of object top
+  if(o.type==='BLOCK'){ put(o.x, rc, rc+1, '#'); }
+  else if(o.type==='SPIKE'){ put(o.x, rc, rc+1, '^'); }
+  else if(o.type==='PAD_YELLOW'){ put(o.x, rc-1, rc, 'Y'); }
+  else if(o.type==='PAD_PINK'){ put(o.x, rc-1, rc, 'P'); }
+  else if(o.type==='PAD_RED'){ put(o.x, rc-1, rc, 'R'); }
+}
+var lines=[];
+lines.push('SM x[0,900] cell=15px; each obj ~2 rows. apex~95px=~6 rows up from feet.');
+lines.push('Ground line = bottom rows; ^ = SPIKE (its 2 rows of cells); # = BLOCK');
+for(var r=H-1;r>=0;r--){ lines.push(('b'+r).padStart(3,'0')+' '+grid[r].join('')); }
+document.getElementById('out').textContent=lines.join('\n');
+</script></body></html>

@@ -1,0 +1,28 @@
+- [x] **Phase 1: Project Setup**
+    - [x] Create folder structure and initial files (`index.html`, `style.css`, `game.js`, `editor.js`).
+    - [x] Setup HTML5 Canvas and basic render loop.
+- [x] **Phase 2: Core Physics & Vehicles**
+    - [x] Implement Cube mode (Jump on click).
+    - [x] Implement Ship mode (Hold to fly).
+    - [x] Implement Ball mode (Click to flip gravity).
+    - [x] Implement UFO/Wave/Robot/Spider/Swingcopter modes.
+    - [x] Collision detection with basic blocks and spikes.
+- [x] **Phase 3: Orbs, Pads, and Portals**
+    - [x] Implement Jump/Gravity/Teleport Orbs.
+    - [x] Implement Jump/Gravity Pads.
+    - [x] Implement Mode Change and Speed/Size Portals.
+- [x] **Phase 4: Trigger & Group ID System**
+    - [x] Logic for assigning Group IDs to objects.
+    - [x] Implement Move, Alpha, and Color triggers.
+- [x] **Phase 5: Level Editor**
+    - [x] Grid-based placement UI.
+    - [x] Object selection and property editing.
+    - [x] Save/Load functionality (LocalStorage).
+- [x] **Phase 6: Audio & UI Polish**
+    - [x] Music synchronization logic.
+    - [x] Game Over / Success screens.
+    - [x] Neon glow effects and transitions.
+- [x] **Phase 7: Finish and create vercel project**
+    - [x] Add suggestions form, Some final touches and create vercel project.
+    - [x] Finish completely and wait for answers from the forms.
+- [x] **The end.**
