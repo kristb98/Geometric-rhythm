@@ -6,6 +6,7 @@
     <meta name="description" content="A Geometry Dash-inspired rhythm platformer game">
     <meta name="theme-color" content="#0a0a0a">
     <title>Geometric Rhythm</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%230a0a0a'/%3E%3Cpath%20d='M16%204%20L28%2016%20L16%2028%20L4%2016%20Z'%20fill='%2300f3ff'/%3E%3Cpath%20d='M16%209%20L23%2016%20L16%2023%20L9%2016%20Z'%20fill='%2339ff14'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -91,8 +92,13 @@
         <div id="feedback-overlay" class="overlay hidden">
             <div class="panel feedback-panel">
                 <h2>SUGGESTIONS, FEEDBACK &amp; MORE</h2>
-                <p class="feedback-note">Your feedback helps shape the game. Click below to open the form — it opens in a new tab.</p>
-                <a id="feedback-open-link" class="feedback-open" href="https://docs.google.com/forms/d/e/1FAIpQLSfHtF4FDY2DHXI8NNPhvM4j6tvYzHIWeBlbGw7Aly58lAXVkA/viewform" target="_blank" rel="noopener">OPEN FEEDBACK FORM</a>
+                <div class="feedback-frame-wrap">
+                    <iframe id="feedback-frame" class="feedback-frame"
+                            title="Suggestions and reports form"
+                            data-src="https://docs.google.com/forms/d/e/1FAIpQLSfHtF4FDY2DHXI8NNPhvM4j6tvYzHIWeBlbGw7Aly58lAXVkA/viewform?embedded=true"
+                            frameborder="0" marginheight="0" marginwidth="0"></iframe>
+                </div>
+                <p class="feedback-note">Fill the form right here — or open it in a new tab if it does not load.</p>
                 <div class="menu-buttons">
                     <button id="feedback-close-btn">CLOSE</button>
                     <button id="feedback-ext-btn">OPEN IN BROWSER</button>

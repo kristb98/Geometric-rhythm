@@ -6,9 +6,16 @@ $port = 8080
 $root = $PSScriptRoot
 
 $listener = New-Object System.Net.HttpListener
+# Listen on both names: localhost (default) and the raw loopback IP, so pages
+# such as result.html can iframe http://127.0.0.1:$port/ without a 400.
 $listener.Prefixes.Add("http://localhost:$port/")
+try {
+    $listener.Prefixes.Add("http://127.0.0.1:$port/")
+} catch {
+    Write-Warning "Could not register 127.0.0.1 prefix (run as admin once: netsh http add urlacl url=http://127.0.0.1:$port/ user=$env:USERNAME)"
+}
 $listener.Start()
-Write-Host "Geometric Rhythm running at http://localhost:$port/  (Ctrl+C to stop)"
+Write-Host "Geometric Rhythm running at http://localhost:$port/  (and http://127.0.0.1:$port/)  (Ctrl+C to stop)"
 
 Start-Process "http://localhost:$port/"
 

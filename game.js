@@ -8,7 +8,7 @@ const ctx = canvas.getContext('2d');
 
 // Game Constants (GD-accurate: 60fps frame-based physics)
 // Moderate-easier variant: lower gravity + stronger jump so the cube clears
-// ~3.2 blocks (apex ~95px vs stock GD ~78px) â€” noticeably easier than real GD
+// ~3.2 blocks (apex ~95px vs stock GD ~78px) — noticeably easier than real GD
 // but snappier/less floaty than the previous 4.3-block setting.
 const GRAVITY = 0.82;
 const JUMP_FORCE = -12.5;
@@ -136,7 +136,7 @@ class Player {
 
     updateUFO(dt, timeScale) {
         this.vy += (GRAVITY * 0.6 * this.gravity) * timeScale;
-        // Clamp UFO speed like ship â€” prevents falling off-screen
+        // Clamp UFO speed like ship — prevents falling off-screen
         if (this.gravity === 1) this.vy = Math.max(-4.5, Math.min(4.0, this.vy));
         else this.vy = Math.max(-4.0, Math.min(4.5, this.vy));
         this.angle += (2 * this.gravity) * timeScale;
@@ -167,7 +167,13 @@ class Player {
 
         switch (this.mode) {
             case 'CUBE':
-                if (this.isGrounded) this.vy = JUMP_FORCE * this.gravity;
+                if (this.isGrounded) {
+                    // Never downgrade a stronger launch (yellow/red pad) to a
+                    // plain jump: only apply JUMP_FORCE if we are not already
+                    // moving up faster than a normal jump.
+                    const jv = JUMP_FORCE * this.gravity;
+                    if (this.gravity === 1 ? this.vy > jv : this.vy < jv) this.vy = jv;
+                }
                 break;
             case 'SHIP':
                 this.vy -= (GRAVITY * 1.6) * this.gravity * (this.timeScale || 1);
@@ -356,6 +362,7 @@ class Player {
             case 'SPEED_2': currentSpeed = levelData.speed * 2; obj.activated = true; break;
             case 'ORB_JUMP': 
                 this.vy = JUMP_FORCE * 1.2 * this.gravity; 
+                this.isGrounded = false;
                 obj.activated = true;
                 break;
             case 'ORB_GRAVITY': 
@@ -365,6 +372,7 @@ class Player {
             case 'ORB_BLACK': 
                 this.gravity *= -1;
                 this.vy = -JUMP_FORCE * 1.5 * this.gravity; 
+                this.isGrounded = false;
                 obj.activated = true;
                 break;
             case 'ORB_TELEPORT':
@@ -374,18 +382,22 @@ class Player {
                 break;
             case 'PAD_JUMP': 
                 this.vy = -PAD_FORCE.YELLOW * this.gravity; 
+                this.isGrounded = false;
                 obj.activated = true;
                 break;
             case 'PAD_YELLOW': 
                 this.vy = -PAD_FORCE.YELLOW * this.gravity; 
+                this.isGrounded = false;
                 obj.activated = true;
                 break;
             case 'PAD_PINK': 
                 this.vy = -PAD_FORCE.PINK * this.gravity; 
+                this.isGrounded = false;
                 obj.activated = true;
                 break;
             case 'PAD_RED': 
                 this.vy = -PAD_FORCE.RED * this.gravity; 
+                this.isGrounded = false;
                 obj.activated = true;
                 break;
             case 'TRIGGER_MOVE': this.activateMoveTrigger(obj); break;
@@ -690,7 +702,7 @@ function completeLevel() {
     canvas.style.pointerEvents = 'none';
     document.getElementById('level-complete').classList.remove('hidden');
     document.getElementById('complete-progress').innerText = '100%';
-    document.getElementById('complete-stars').innerText = 'â˜…'.repeat(levelData.stars);
+    document.getElementById('complete-stars').innerText = '★'.repeat(levelData.stars);
 
     const completed = getCompletedLevels();
     const firstTime = !completed.includes(currentLevel);
@@ -704,7 +716,7 @@ function completeLevel() {
     const diamonds = firstTime ? 3 : 0;
     addCurrency(orbs, diamonds);
     document.getElementById('complete-unlock').innerText =
-        firstTime ? 'REWARD: â™¥ +' + orbs + '  â—† +' + diamonds : 'REPLAY: â™¥ +' + orbs;
+        firstTime ? 'REWARD: ♥ +' + orbs + '  ◆ +' + diamonds : 'REPLAY: ♥ +' + orbs;
     stopMusic();
 }
 
@@ -740,7 +752,7 @@ function addCurrency(orbs, diamonds) {
 function updateCurrencyDisplay() {
     const c = getCurrency();
     document.querySelectorAll('.currency-display').forEach(el => {
-        el.innerHTML = 'â™¥ ' + c.orbs + ' &nbsp;â—† ' + c.diamonds;
+        el.innerHTML = '♥ ' + c.orbs + ' &nbsp;◆ ' + c.diamonds;
     });
 }
 
@@ -876,7 +888,7 @@ function buildLevelMenu() {
             <div class="level-face">${difficultyFaceSVG(level.diff)}</div>
             <div class="level-name">${level.name}</div>
             <div class="level-diff" style="color:${col}">${level.diff}</div>
-            <div class="level-stars">${'â˜…'.repeat(level.stars)}${done ? '<span class="level-check">âœ“</span>' : ''}</div>
+            <div class="level-stars">${'★'.repeat(level.stars)}${done ? '<span class="level-check">✓</span>' : ''}</div>
         `;
 
         card.onclick = () => startLevel(i);
@@ -935,7 +947,7 @@ function buildCustomizeGrid() {
         const swatch = cat === 'colors' ? '' : `<div class="cust-icon">${iconPreviewSVG(item, cat)}</div>`;
         div.innerHTML = swatch +
             `<div class="cust-item-name">${item.name}</div>` +
-            `<div class="cust-item-cost">${isOwned ? (isEquipped ? 'EQUIPPED' : 'OWNED') : (item.currency === 'diamonds' ? 'â—†' + item.cost : 'â™¥' + item.cost)}</div>`;
+            `<div class="cust-item-cost">${isOwned ? (isEquipped ? 'EQUIPPED' : 'OWNED') : (item.currency === 'diamonds' ? '◆' + item.cost : '♥' + item.cost)}</div>`;
 
         div.onclick = () => {
             if (isOwned) {
@@ -1012,7 +1024,7 @@ function buildShopGrid() {
         div.className = 'shop-item' + (isOwned ? ' owned' : (canAfford ? ' buyable' : ' locked'));
         if (cat === 'colors') div.style.background = item.hex;
         div.innerHTML = `<div class="cust-item-name">${item.name}</div>` +
-            `<div class="cust-item-cost">${isOwned ? 'OWNED' : (item.currency === 'diamonds' ? 'â—†' + item.cost : 'â™¥' + item.cost)}</div>`;
+            `<div class="cust-item-cost">${isOwned ? 'OWNED' : (item.currency === 'diamonds' ? '◆' + item.cost : '♥' + item.cost)}</div>`;
 
         div.onclick = () => {
             if (isOwned) {
@@ -1139,7 +1151,16 @@ bindEl('restart-btn', () => restartLevel());
 bindEl('menu-btn', () => showLevelMenu());
 bindEl('complete-replay-btn', () => restartLevel());
 bindEl('complete-menu-btn', () => showLevelMenu());
-bindEl('feedback-btn', () => document.getElementById('feedback-overlay').classList.remove('hidden'));
+bindEl('feedback-btn', () => {
+    const overlay = document.getElementById('feedback-overlay');
+    const frame = document.getElementById('feedback-frame');
+    overlay.classList.remove('hidden');
+    // Lazy-load the Google Form only when the panel is actually opened (after
+    // it is visible, so the browser starts the request immediately).
+    if (frame && !frame.getAttribute('src') && frame.dataset.src) {
+        frame.src = frame.dataset.src;
+    }
+});
 bindEl('feedback-close-btn', () => document.getElementById('feedback-overlay').classList.add('hidden'));
 bindEl('feedback-ext-btn', () => window.open('https://docs.google.com/forms/d/e/1FAIpQLSfHtF4FDY2DHXI8NNPhvM4j6tvYzHIWeBlbGw7Aly58lAXVkA/viewform', '_blank'));
 
