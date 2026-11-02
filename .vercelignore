@@ -24,3 +24,5 @@ README.md
 .env.local
 .env
 .gitignore
+.agents
+skills-lock.json

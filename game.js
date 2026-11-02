@@ -752,7 +752,9 @@ function addCurrency(orbs, diamonds) {
 function updateCurrencyDisplay() {
     const c = getCurrency();
     document.querySelectorAll('.currency-display').forEach(el => {
-        el.innerHTML = '♥ ' + c.orbs + ' &nbsp;◆ ' + c.diamonds;
+        el.innerHTML =
+            '<span class="cur cur--orbs"><span class="cur__icon" aria-hidden="true">♥</span>' + c.orbs + '</span>' +
+            '<span class="cur cur--gems"><span class="cur__icon" aria-hidden="true">◆</span>' + c.diamonds + '</span>';
     });
 }
 
@@ -879,19 +881,32 @@ function buildLevelMenu() {
 
     LEVELS.forEach((level, i) => {
         const card = document.createElement('div');
-        card.className = 'level-card';
+        card.className = 'level-card' + (completed.includes(i) ? ' is-complete' : '');
         const col = diffColor(level.diff);
-        card.style.borderColor = col;
+        card.style.setProperty('--diff', col);
         const done = completed.includes(i);
 
         card.innerHTML = `
+            <span class="level-card__num">${String(i + 1).padStart(2, '0')}</span>
             <div class="level-face">${difficultyFaceSVG(level.diff)}</div>
             <div class="level-name">${level.name}</div>
-            <div class="level-diff" style="color:${col}">${level.diff}</div>
-            <div class="level-stars">${'★'.repeat(level.stars)}${done ? '<span class="level-check">✓</span>' : ''}</div>
+            <div class="level-meta">
+                <span class="level-diff">${level.diff}</span>
+                <span class="level-stars" aria-label="${level.stars} of 5 stars">${'★'.repeat(level.stars)}</span>
+            </div>
+            <span class="level-check" aria-hidden="true">${done ? '✓' : ''}</span>
         `;
 
+        card.tabIndex = 0;
+        card.setAttribute('role', 'button');
+        card.setAttribute('aria-label', level.name + ', ' + level.diff + (done ? ', completed' : ''));
         card.onclick = () => startLevel(i);
+        card.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                startLevel(i);
+            }
+        };
         grid.appendChild(card);
     });
 }
@@ -948,6 +963,13 @@ function buildCustomizeGrid() {
         div.innerHTML = swatch +
             `<div class="cust-item-name">${item.name}</div>` +
             `<div class="cust-item-cost">${isOwned ? (isEquipped ? 'EQUIPPED' : 'OWNED') : (item.currency === 'diamonds' ? '◆' + item.cost : '♥' + item.cost)}</div>`;
+
+        div.tabIndex = 0;
+        div.setAttribute('role', 'button');
+        div.setAttribute('aria-label', item.name + (isEquipped ? ', equipped' : isOwned ? ', owned' : ', locked'));
+        div.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); div.click(); }
+        };
 
         div.onclick = () => {
             if (isOwned) {
@@ -1023,8 +1045,16 @@ function buildShopGrid() {
         const div = document.createElement('div');
         div.className = 'shop-item' + (isOwned ? ' owned' : (canAfford ? ' buyable' : ' locked'));
         if (cat === 'colors') div.style.background = item.hex;
-        div.innerHTML = `<div class="cust-item-name">${item.name}</div>` +
+        div.innerHTML = `<div class="cust-icon">${iconPreviewSVG(item, cat)}</div>` +
+            `<div class="cust-item-name">${item.name}</div>` +
             `<div class="cust-item-cost">${isOwned ? 'OWNED' : (item.currency === 'diamonds' ? '◆' + item.cost : '♥' + item.cost)}</div>`;
+
+        div.tabIndex = 0;
+        div.setAttribute('role', 'button');
+        div.setAttribute('aria-label', item.name + (isOwned ? ', owned' : canAfford ? ', buy for ' + item.cost : ', locked'));
+        div.onkeydown = (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); div.click(); }
+        };
 
         div.onclick = () => {
             if (isOwned) {
@@ -1130,7 +1160,9 @@ function bindEl(id, fn) {
 
 bindEl('mute-btn', () => {
     muted = !muted;
-    document.getElementById('mute-btn').innerText = muted ? 'MUSIC: OFF' : 'MUSIC: ON';
+    const muteBtn = document.getElementById('mute-btn');
+    muteBtn.innerText = muted ? 'MUSIC: OFF' : 'MUSIC: ON';
+    muteBtn.setAttribute('aria-pressed', String(muted));
     const music = document.getElementById('bg-music');
     if (music) {
         if (muted) {
