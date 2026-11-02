@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "game-ui-frontend": {
+      "source": "openai/plugins",
+      "sourceType": "github",
+      "skillPath": "plugins/game-studio/skills/game-ui-frontend/SKILL.md",
+      "computedHash": "52a249b961c61f5cf05f37794a9b162f69a9bb75aa6f59ff9c18d5cb23e20f29"
+    }
+  }
+}
