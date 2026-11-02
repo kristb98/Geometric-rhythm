@@ -1033,14 +1033,28 @@ function buildShopMenu() {
             tabsEl.appendChild(b);
         });
     }
+    let focusId = null;
     if (shopTarget) {
         const map = { color1: 'colors', color2: 'colors', trail: 'trails', icons: 'icons', ships: 'ships' };
         shopTab = map[shopTarget.tab] || 'icons';
+        focusId = shopTarget.itemId;
         shopTarget = null;
     }
     Array.from(tabsEl.children).forEach((b, i) => b.classList.toggle('active', SHOP_TABS[i] === shopTab));
     buildShopGrid();
     updateCurrencyDisplay();
+
+    // Arriving from a locked item: point the player at what they wanted.
+    if (focusId) {
+        const items = shopTab === 'icons' ? ICONS : shopTab === 'ships' ? SHIPS : shopTab === 'trails' ? TRAILS : COLORS;
+        const idx = items.findIndex(it => it.id === focusId);
+        const el = idx > -1 ? document.getElementById('shop-grid').children[idx] : null;
+        if (el) {
+            el.scrollIntoView({ block: 'center' });
+            el.classList.add('flash-target');
+            setTimeout(() => el.classList.remove('flash-target'), 1500);
+        }
+    }
 }
 
 function openShopFor(tab, itemId) {

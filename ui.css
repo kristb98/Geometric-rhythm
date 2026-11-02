@@ -619,6 +619,17 @@ kbd {
 .cust-item.locked,
 .shop-item.locked { opacity: .5; }
 
+/* Item the player was sent here for */
+.shop-item.flash-target {
+    animation: shop-flash 1.5s ease;
+}
+
+@keyframes shop-flash {
+    0%   { box-shadow: 0 0 0 2px #fff; }
+    70%  { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0); }
+    100% { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0); }
+}
+
 .cust-item .cust-item-name,
 .shop-item .cust-item-name {
     margin-top: 8px;
