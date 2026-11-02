@@ -444,33 +444,7 @@ class Player {
         const c1 = getColorHex(getEquipped('color1'));
         const c2 = getColorHex(getEquipped('color2'));
         if (this.mode === 'SHIP') {
-            // Neon rocket: body + nose + flame
-            ctx.shadowBlur = 14;
-            ctx.shadowColor = c1;
-            ctx.fillStyle = c1;
-            ctx.beginPath();
-            ctx.moveTo(-s * 0.5, -s * 0.35);
-            ctx.lineTo(s * 0.5, -s * 0.35);
-            ctx.lineTo(s * 0.32, s * 0.35);
-            ctx.lineTo(-s * 0.32, s * 0.35);
-            ctx.closePath();
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(-s * 0.5, -s * 0.35);
-            ctx.lineTo(-s * 0.25, -s * 0.75);
-            ctx.lineTo(s * 0.02, -s * 0.35);
-            ctx.closePath();
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            ctx.fillStyle = '#ff8800';
-            ctx.globalAlpha = 0.9;
-            ctx.beginPath();
-            ctx.moveTo(-s * 0.18, s * 0.35);
-            ctx.lineTo(-s * 0.02, s * 0.35 + s * 0.28);
-            ctx.lineTo(s * 0.14, s * 0.35);
-            ctx.closePath();
-            ctx.fill();
-            ctx.globalAlpha = 1;
+            drawShipBody(ctx, getEquipped('ship'), s, c1, c2);
         } else {
             drawIconBody(ctx, getEquipped('icon'), s, c1, c2);
         }
@@ -769,6 +743,18 @@ const ICONS = [
     { id: 'crown',   name: 'Crown Cube',    cost: 3, currency: 'diamonds' }
 ];
 
+// Ship hulls. These are drawn whenever the player is in ship mode, so a
+// single equipped hull carries across every level.
+const SHIPS = [
+    { id: 'rocket',  name: 'Neon Rocket', cost: 0 },
+    { id: 'dart',    name: 'Dart',        cost: 250, currency: 'orbs' },
+    { id: 'falcon',  name: 'Falcon',      cost: 400, currency: 'orbs' },
+    { id: 'manta',   name: 'Manta',       cost: 600, currency: 'orbs' },
+    { id: 'saucer',  name: 'Saucer',      cost: 2, currency: 'diamonds' },
+    { id: 'phantom', name: 'Phantom',     cost: 4, currency: 'diamonds' }
+];
+
+
 const COLORS = [
     { id: 'cyan',   hex: '#00f3ff', name: 'Cyan',   cost: 0 },
     { id: 'white',  hex: '#ffffff', name: 'White',  cost: 100, currency: 'orbs' },
@@ -792,11 +778,15 @@ const TRAILS = [
 
 // Customization storage
 function getOwned() {
+    const fresh = { icons: ['base'], colors: ['cyan', 'white'], trails: ['none'], ships: ['rocket'] };
     try {
         const o = JSON.parse(localStorage.getItem('geometric_owned'));
-        if (o && Array.isArray(o.icons) && Array.isArray(o.colors) && Array.isArray(o.trails)) return o;
+        if (o && Array.isArray(o.icons) && Array.isArray(o.colors) && Array.isArray(o.trails)) {
+            // Older saves predate ship hulls — keep everything and add the default.
+            return { ...fresh, ...o, ships: Array.isArray(o.ships) ? o.ships : ['rocket'] };
+        }
     } catch (e) {}
-    return { icons: ['base'], colors: ['cyan', 'white'], trails: ['none'] };
+    return fresh;
 }
 
 function saveOwned(o) {
@@ -822,11 +812,14 @@ function buyItem(cat, item) {
 }
 
 function getEquip() {
+    const fresh = { icon: 'base', ship: 'rocket', color1: 'cyan', color2: 'white', trail: 'none' };
     try {
         const e = JSON.parse(localStorage.getItem('geometric_equip'));
-        if (e && e.icon && e.color1 && e.color2 && e.trail) return e;
+        if (e && e.icon && e.color1 && e.color2 && e.trail) {
+            return { ...fresh, ...e, ship: e.ship || 'rocket' };
+        }
     } catch (err) {}
-    return { icon: 'base', color1: 'cyan', color2: 'white', trail: 'none' };
+    return fresh;
 }
 
 function saveEquip(e) {
@@ -840,6 +833,7 @@ function getEquipped(key) {
 function equipItem(cat, id) {
     const e = getEquip();
     if (cat === 'icons') e.icon = id;
+    else if (cat === 'ships') e.ship = id;
     else if (cat === 'color1') e.color1 = id;
     else if (cat === 'color2') e.color2 = id;
     else if (cat === 'trail') e.trail = id;
@@ -859,16 +853,28 @@ function getColorHex(id) {
 function diffColor(diff) {
     if (diff === 'Easy') return '#00ff00';
     if (diff === 'Normal') return '#00ccff';
+    if (diff === 'Hard') return '#ff4444';
+    if (diff === 'Insane') return '#ff2bd6';
     return '#ff4444';
 }
 
 function difficultyFaceSVG(diff) {
     const col = diffColor(diff);
-    const mouth = diff === 'Hard' ? 'M6 13 Q10 10.5 14 13' : 'M6 10.5 Q10 13.5 14 10.5';
+    const mouth = diff === 'Insane'
+        ? 'M5.6 14.2 Q10 11.4 14.4 14.2'
+        : diff === 'Hard' ? 'M6 13 Q10 10.5 14 13' : 'M6 10.5 Q10 13.5 14 10.5';
+    const brows = diff === 'Insane'
+        ? `<path d="M4.8 4.6 L8 6 M15.2 4.6 L12 6" stroke="#0a0a1a" stroke-width="1.4" stroke-linecap="round"/>`
+        : '';
+    const eyes = diff === 'Insane'
+        ? `<path d="M5.4 7.2 L8 9.2 M6.7 9.4 L8 8.2" stroke="#0a0a1a" stroke-width="1.2" stroke-linecap="round"/>
+           <path d="M14.6 7.2 L12 9.2 M13.3 9.4 L12 8.2" stroke="#0a0a1a" stroke-width="1.2" stroke-linecap="round"/>`
+        : `<rect x="5.2" y="5.8" width="2.4" height="3.6" rx="1" fill="#0a0a1a"/>
+           <rect x="12.4" y="5.8" width="2.4" height="3.6" rx="1" fill="#0a0a1a"/>`;
     return `<svg viewBox="0 0 20 20" width="46" height="46">
         <circle cx="10" cy="10" r="9" fill="${col}" stroke="#0a0a1a" stroke-width="1.5"/>
-        <rect x="5.2" y="5.8" width="2.4" height="3.6" rx="1" fill="#0a0a1a"/>
-        <rect x="12.4" y="5.8" width="2.4" height="3.6" rx="1" fill="#0a0a1a"/>
+        ${brows}
+        ${eyes}
         <path d="${mouth}" stroke="#0a0a1a" stroke-width="1.6" fill="none" stroke-linecap="round"/>
     </svg>`;
 }
@@ -892,7 +898,7 @@ function buildLevelMenu() {
             <div class="level-name">${level.name}</div>
             <div class="level-meta">
                 <span class="level-diff">${level.diff}</span>
-                <span class="level-stars" aria-label="${level.stars} of 5 stars">${'★'.repeat(level.stars)}</span>
+                <span class="level-stars" aria-label="${level.stars} stars">${'★'.repeat(level.stars)}</span>
             </div>
             <span class="level-check" aria-hidden="true">${done ? '✓' : ''}</span>
         `;
@@ -912,7 +918,7 @@ function buildLevelMenu() {
 }
 
 // Customize menu
-const CUST_TABS = ['icons', 'color1', 'color2', 'trail'];
+const CUST_TABS = ['icons', 'ships', 'color1', 'color2', 'trail'];
 let custTab = 'icons';
 
 function buildCustomizeMenu() {
@@ -935,6 +941,7 @@ function buildCustomizeMenu() {
 }
 
 function custCat() {
+    if (custTab === 'ships') return 'ships';
     return custTab === 'color1' || custTab === 'color2' ? 'colors' : custTab === 'trail' ? 'trails' : 'icons';
 }
 
@@ -943,7 +950,7 @@ function buildCustomizeGrid() {
     if (!grid) return;
     grid.innerHTML = '';
     const cat = custCat();
-    const items = cat === 'icons' ? ICONS : cat === 'trails' ? TRAILS : COLORS;
+    const items = cat === 'icons' ? ICONS : cat === 'ships' ? SHIPS : cat === 'trails' ? TRAILS : COLORS;
     const owned = getOwned();
     const equip = getEquip();
 
@@ -951,6 +958,7 @@ function buildCustomizeGrid() {
         const isOwned = owned[cat].includes(item.id);
         const isEquipped =
             (custTab === 'icons' && equip.icon === item.id) ||
+            (custTab === 'ships' && equip.ship === item.id) ||
             (custTab === 'color1' && equip.color1 === item.id) ||
             (custTab === 'color2' && equip.color2 === item.id) ||
             (custTab === 'trail' && equip.trail === item.id);
@@ -989,6 +997,17 @@ function iconPreviewSVG(item, cat) {
         const rx = item.id === 'round' ? 3 : 1;
         return `<svg viewBox="0 0 24 24" width="34" height="34"><rect x="6" y="8" width="12" height="12" rx="${rx}" fill="#fff" stroke="#0a0a1a" stroke-width="1"/></svg>`;
     }
+    if (cat === 'ships') {
+        const hulls = {
+            rocket: '<path d="M3 9 H17 L21 12 L17 15 H3 Z" fill="#fff"/><path d="M4 9 L8 4 L10 9 Z M4 15 L8 20 L10 15 Z" fill="#8fd8ff"/><circle cx="15.5" cy="12" r="1.7" fill="#0a0a1a"/><path d="M3 10 L0 12 L3 14 Z" fill="#ff8800"/>',
+            dart: '<path d="M21 12 L11 9 L5 9.6 L5 14.4 L11 15 Z" fill="#fff"/><path d="M7 9.6 L2 4 L6 10.6 Z M7 14.4 L2 20 L6 13.4 Z" fill="#8fd8ff"/><path d="M6 11.5 H13 V12.5 H6 Z" fill="#0a0a1a" opacity=".3"/>',
+            falcon: '<path d="M21 12 L14 8.5 L5 8.5 L3 12 L5 15.5 L14 15.5 Z" fill="#fff"/><path d="M13 8.5 L2 3 L7 10 Z M13 15.5 L2 21 L7 14 Z" fill="#8fd8ff"/><ellipse cx="13" cy="12" rx="3.2" ry="1.9" fill="#0a0a1a" opacity=".35"/>',
+            manta: '<path d="M20 12 L13 9 L6 9.8 L4 12 L6 14.2 L13 15 Z" fill="#fff"/><path d="M12 9.4 C8 5 4 4 1 6 C5 8 7 10 8 11 Z" fill="#8fd8ff"/><path d="M12 14.6 C8 19 4 20 1 18 C5 16 7 14 8 13 Z" fill="#8fd8ff"/><circle cx="16" cy="12" r=".9" fill="#8fd8ff"/>',
+            saucer: '<ellipse cx="12" cy="13" rx="9" ry="3.4" fill="#fff"/><path d="M8.8 13 a3.2 4 0 0 1 6.4 0 Z" fill="#8fd8ff"/><circle cx="5.5" cy="13" r=".8" fill="#8fd8ff"/><circle cx="12" cy="13.4" r=".8" fill="#8fd8ff"/><circle cx="18.5" cy="13" r=".8" fill="#8fd8ff"/>',
+            phantom: '<path d="M21 12 L12 8.6 L5 9.4 L7 12 L5 14.6 L12 15.4 Z" fill="#fff"/><path d="M7 9.4 L2 4 L5 10.6 Z M7 14.6 L2 20 L5 13.4 Z" fill="#8fd8ff"/><circle cx="16" cy="12" r="1.1" fill="#8fd8ff"/>'
+        };
+        return `<svg viewBox="0 0 24 24" width="34" height="34">${hulls[item.id] || hulls.rocket}</svg>`;
+    }
     if (cat === 'trails') {
         return `<svg viewBox="0 0 24 24" width="34" height="34"><rect x="3" y="10" width="3" height="3" fill="#fff"/><rect x="8" y="10" width="3" height="3" fill="#fff"/><rect x="13" y="10" width="3" height="3" fill="#fff"/><rect x="18" y="10" width="3" height="3" fill="#fff"/></svg>`;
     }
@@ -996,7 +1015,7 @@ function iconPreviewSVG(item, cat) {
 }
 
 // Shop menu
-const SHOP_TABS = ['icons', 'colors', 'trails'];
+const SHOP_TABS = ['icons', 'ships', 'colors', 'trails'];
 let shopTab = 'icons';
 let shopTarget = null;
 
@@ -1015,8 +1034,8 @@ function buildShopMenu() {
         });
     }
     if (shopTarget) {
-        const targetTab = shopTarget.tab === 'color1' || shopTarget.tab === 'color2' ? 'colors' : shopTarget.tab === 'trail' ? 'trails' : 'icons';
-        shopTab = targetTab;
+        const map = { color1: 'colors', color2: 'colors', trail: 'trails', icons: 'icons', ships: 'ships' };
+        shopTab = map[shopTarget.tab] || 'icons';
         shopTarget = null;
     }
     Array.from(tabsEl.children).forEach((b, i) => b.classList.toggle('active', SHOP_TABS[i] === shopTab));
@@ -1033,7 +1052,7 @@ function buildShopGrid() {
     const grid = document.getElementById('shop-grid');
     if (!grid) return;
     grid.innerHTML = '';
-    const items = shopTab === 'icons' ? ICONS : shopTab === 'trails' ? TRAILS : COLORS;
+    const items = shopTab === 'icons' ? ICONS : shopTab === 'ships' ? SHIPS : shopTab === 'trails' ? TRAILS : COLORS;
     const cat = shopTab;
     const owned = getOwned();
     const cur = getCurrency();
@@ -1058,7 +1077,7 @@ function buildShopGrid() {
 
         div.onclick = () => {
             if (isOwned) {
-                equipItem(cat === 'colors' ? 'color1' : cat === 'trails' ? 'trail' : 'icons', item.id);
+                equipItem(cat === 'colors' ? 'color1' : cat === 'trails' ? 'trail' : cat, item.id);
                 player.color = getColorHex(getEquipped('color1'));
                 buildShopGrid();
                 buildCustomizeMenu();
@@ -1199,6 +1218,192 @@ bindEl('feedback-ext-btn', () => window.open('https://docs.google.com/forms/d/e/
 
 
 // Player Icon Drawing
+// Ships face the direction of travel (+x) so the hull stays level while
+// flying and noses up when the ship climbs (angle = vy * 3).
+function shipFlame(ctx, s, x0, y0, half, length) {
+    const flicker = 0.78 + 0.22 * Math.sin(performance.now() / 38);
+    const tip = x0 - s * length * flicker;
+    const g = ctx.createLinearGradient(x0, y0, tip, y0);
+    g.addColorStop(0, '#fff6b8');
+    g.addColorStop(0.45, '#ffab2e');
+    g.addColorStop(1, 'rgba(255, 70, 0, 0)');
+    ctx.save();
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = '#ff7a00';
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0 - s * half);
+    ctx.lineTo(tip, y0);
+    ctx.lineTo(x0, y0 + s * half);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+
+function drawShipBody(ctx, shipId, s, c1, c2) {
+    ctx.save();
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = c1;
+    ctx.fillStyle = c1;
+
+    if (shipId === 'dart') {
+        shipFlame(ctx, s, -s * 0.36, 0, 0.11, 0.36);
+        // Slim needle hull
+        ctx.beginPath();
+        ctx.moveTo(s * 0.74, 0);
+        ctx.lineTo(s * 0.12, -s * 0.19);
+        ctx.lineTo(-s * 0.32, -s * 0.14);
+        ctx.lineTo(-s * 0.32, s * 0.14);
+        ctx.lineTo(s * 0.12, s * 0.19);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = c2;
+        // Swept rear wings
+        ctx.beginPath();
+        ctx.moveTo(s * 0.02, -s * 0.15); ctx.lineTo(-s * 0.6, -s * 0.48); ctx.lineTo(-s * 0.28, -s * 0.08);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(s * 0.02, s * 0.15); ctx.lineTo(-s * 0.6, s * 0.48); ctx.lineTo(-s * 0.28, s * 0.08);
+        ctx.closePath(); ctx.fill();
+        // Spine
+        ctx.fillRect(-s * 0.04, -s * 0.05, s * 0.34, s * 0.1);
+    } else if (shipId === 'falcon') {
+        shipFlame(ctx, s, -s * 0.4, 0, 0.17, 0.3);
+        // Broad fuselage
+        ctx.beginPath();
+        ctx.moveTo(s * 0.66, 0);
+        ctx.lineTo(s * 0.22, -s * 0.25);
+        ctx.lineTo(-s * 0.28, -s * 0.25);
+        ctx.lineTo(-s * 0.4, 0);
+        ctx.lineTo(-s * 0.28, s * 0.25);
+        ctx.lineTo(s * 0.22, s * 0.25);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = c2;
+        // Wide falcon wings
+        ctx.beginPath();
+        ctx.moveTo(s * 0.08, -s * 0.22); ctx.lineTo(-s * 0.56, -s * 0.58); ctx.lineTo(-s * 0.18, -s * 0.16);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(s * 0.08, s * 0.22); ctx.lineTo(-s * 0.56, s * 0.58); ctx.lineTo(-s * 0.18, s * 0.16);
+        ctx.closePath(); ctx.fill();
+        // Cockpit
+        ctx.beginPath();
+        ctx.ellipse(s * 0.13, 0, s * 0.16, s * 0.1, 0, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (shipId === 'manta') {
+        shipFlame(ctx, s, -s * 0.32, 0, 0.09, 0.26);
+        // Flat ray body
+        ctx.beginPath();
+        ctx.moveTo(s * 0.58, 0);
+        ctx.lineTo(s * 0.1, -s * 0.17);
+        ctx.lineTo(-s * 0.26, -s * 0.11);
+        ctx.lineTo(-s * 0.34, 0);
+        ctx.lineTo(-s * 0.26, s * 0.11);
+        ctx.lineTo(s * 0.1, s * 0.17);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = c2;
+        // Long manta wings
+        ctx.beginPath();
+        ctx.moveTo(s * 0.06, -s * 0.13);
+        ctx.quadraticCurveTo(-s * 0.24, -s * 0.56, -s * 0.64, -s * 0.42);
+        ctx.quadraticCurveTo(-s * 0.36, -s * 0.14, -s * 0.26, -s * 0.06);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(s * 0.06, s * 0.13);
+        ctx.quadraticCurveTo(-s * 0.24, s * 0.56, -s * 0.64, s * 0.42);
+        ctx.quadraticCurveTo(-s * 0.36, s * 0.14, -s * 0.26, s * 0.06);
+        ctx.closePath(); ctx.fill();
+        // Eye
+        ctx.beginPath();
+        ctx.arc(s * 0.24, 0, s * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (shipId === 'saucer') {
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = c2;
+        ctx.fillStyle = c2;
+        ctx.globalAlpha = 0.22;
+        ctx.beginPath();
+        ctx.ellipse(-s * 0.1, s * 0.3, s * 0.55, s * 0.13, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowColor = c1;
+        ctx.fillStyle = c1;
+        // Disc
+        ctx.beginPath();
+        ctx.ellipse(0, 0, s * 0.62, s * 0.23, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Dome
+        ctx.beginPath();
+        ctx.arc(-s * 0.04, 0, s * 0.24, Math.PI, 0);
+        ctx.closePath();
+        ctx.fill();
+        // Hull lights
+        ctx.fillStyle = c2;
+        for (let i = -1; i <= 1; i++) {
+            ctx.beginPath();
+            ctx.arc(i * s * 0.28, s * 0.07, s * 0.05, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Nose light
+        ctx.fillStyle = 'rgba(255,255,255,.9)';
+        ctx.beginPath();
+        ctx.arc(s * 0.46, -s * 0.02, s * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (shipId === 'phantom') {
+        shipFlame(ctx, s, -s * 0.3, -s * 0.16, 0.07, 0.3);
+        shipFlame(ctx, s, -s * 0.3, s * 0.16, 0.07, 0.3);
+        // Arrow fuselage with notched tail
+        ctx.beginPath();
+        ctx.moveTo(s * 0.72, 0);
+        ctx.lineTo(s * 0.06, -s * 0.21);
+        ctx.lineTo(-s * 0.32, -s * 0.15);
+        ctx.lineTo(-s * 0.18, 0);
+        ctx.lineTo(-s * 0.32, s * 0.15);
+        ctx.lineTo(s * 0.06, s * 0.21);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = c2;
+        // Twin tail winglets
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.16, -s * 0.11); ctx.lineTo(-s * 0.52, -s * 0.44); ctx.lineTo(-s * 0.28, -s * 0.08);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.16, s * 0.11); ctx.lineTo(-s * 0.52, s * 0.44); ctx.lineTo(-s * 0.28, s * 0.08);
+        ctx.closePath(); ctx.fill();
+        // Sensor eye
+        ctx.beginPath();
+        ctx.arc(s * 0.24, 0, s * 0.07, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        // Neon Rocket — the default hull
+        shipFlame(ctx, s, -s * 0.42, 0, 0.15, 0.34);
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.44, -s * 0.3);
+        ctx.lineTo(s * 0.26, -s * 0.3);
+        ctx.lineTo(s * 0.64, 0);
+        ctx.lineTo(s * 0.26, s * 0.3);
+        ctx.lineTo(-s * 0.44, s * 0.3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = c2;
+        // Tail fins
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.32, -s * 0.28); ctx.lineTo(-s * 0.02, -s * 0.58); ctx.lineTo(s * 0.06, -s * 0.28);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-s * 0.32, s * 0.28); ctx.lineTo(-s * 0.02, s * 0.58); ctx.lineTo(s * 0.06, s * 0.28);
+        ctx.closePath(); ctx.fill();
+        // Porthole
+        ctx.beginPath();
+        ctx.arc(s * 0.14, 0, s * 0.11, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
+}
+
 function drawIconBody(ctx, iconId, s, c1, c2) {
     const h = s / 2;
 
