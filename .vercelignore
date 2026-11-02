@@ -1,0 +1,26 @@
+# Local-only / development files — never deploy these
+result.html
+gdsolver.html
+gdcompletability.html
+gdpadtest.html
+gdport_smoke.html
+gdsdebug.html
+render_ascii.html
+render_fine.html
+scan_spikes.html
+test_js.html
+server.ps1
+server.log
+play.bat
+task.md.resolved
+Pictures - Shortcut.lnk
+NOTES.md
+README.md
+
+# Tooling / config that must never be served
+.git
+.vercel
+.vercelignore
+.env.local
+.env
+.gitignore

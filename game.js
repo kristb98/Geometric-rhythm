@@ -1243,10 +1243,11 @@ function gameLoop(timestamp) {
     const dt = Math.max(0, Math.min(timestamp - lastTime, 100));
     lastTime = timestamp;
 
-    // Canvas dimensions (CSS pixels)
+    // Canvas dimensions (CSS pixels). The canvas is sized by its container
+    // (the picture frame), so measure the canvas itself rather than the window.
     const dpr = window.devicePixelRatio || 1;
-    const cw = window.innerWidth;
-    const ch = window.innerHeight;
+    const cw = canvas.clientWidth || window.innerWidth;
+    const ch = canvas.clientHeight || window.innerHeight;
 
     // Resize Canvas (retina-aware)
     if (canvas.width !== cw * dpr || canvas.height !== ch * dpr) {
@@ -1337,7 +1338,7 @@ function drawObjects() {
     ctx.translate(-levelX, 0);
     
     levelData.objects.forEach(obj => {
-        if (obj.x + (obj.size || 0) - levelX < -100 || obj.x - levelX > window.innerWidth + 100) return;
+        if (obj.x + (obj.size || 0) - levelX < -100 || obj.x - levelX > (canvas.clientWidth || window.innerWidth) + 100) return;
 
         const x = obj.x;
         const y = obj.y;
@@ -1419,7 +1420,7 @@ function drawObjects() {
         } else if (obj.type.startsWith('TRIGGER')) {
             ctx.setLineDash([5, 5]);
             ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-            ctx.strokeRect(x, 0, 2, window.innerHeight);
+            ctx.strokeRect(x, 0, 2, canvas.clientHeight || window.innerHeight);
             ctx.setLineDash([]);
         } else {
             ctx.fillStyle = obj.color || '#fff';
@@ -1454,8 +1455,8 @@ function getPadColor(type) {
 }
 
 function drawWorld() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const w = canvas.clientWidth || window.innerWidth;
+    const h = canvas.clientHeight || window.innerHeight;
     // Draw Background
     ctx.fillStyle = levelData.bg || '#0a0a0a';
     ctx.fillRect(0, 0, w, h);
@@ -1483,8 +1484,8 @@ function varToHex(varName) {
 // Initial Setup
 let levelData = LEVELS[0];
 const _dpr = window.devicePixelRatio || 1;
-canvas.width = window.innerWidth * _dpr;
-canvas.height = window.innerHeight * _dpr;
+canvas.width = (canvas.clientWidth || window.innerWidth) * _dpr;
+canvas.height = (canvas.clientHeight || window.innerHeight) * _dpr;
 ctx.setTransform(_dpr, 0, 0, _dpr, 0, 0);
 
 buildLevelMenu();

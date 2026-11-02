@@ -8,103 +8,111 @@
     <title>Geometric Rhythm</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%230a0a0a'/%3E%3Cpath%20d='M16%204%20L28%2016%20L16%2028%20L4%2016%20Z'%20fill='%2300f3ff'/%3E%3Cpath%20d='M16%209%20L23%2016%20L16%2023%20L9%2016%20Z'%20fill='%2339ff14'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="frame.css">
 </head>
 <body>
-    <div id="game-container">
-        <canvas id="gameCanvas"></canvas>
+    <div class="room">
+        <figure class="frame">
+            <div class="frame__moulding">
+                <div class="frame__mat">
+                    <div id="game-container">
+                        <canvas id="gameCanvas"></canvas>
 
-        <div id="hud">
-            <div id="progress-container">
-                <div id="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
-            </div>
-            <div id="score">0%</div>
-            <button id="mute-btn" title="Mute music">MUSIC: ON</button>
-        </div>
+                        <div id="hud">
+                            <div id="progress-container">
+                                <div id="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                            <div id="score">0%</div>
+                            <button id="mute-btn" title="Mute music">MUSIC: ON</button>
+                        </div>
 
-        <div id="main-menu" class="overlay">
-            <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
-            <h1>GEOMETRIC RHYTHM</h1>
-            <div class="song-selector-row">
-                <label for="song-selector">SONG</label>
-                <select id="song-selector"></select>
-            </div>
-            <div class="menu-buttons">
-                <button id="play-btn">PLAY</button>
-                <button id="customize-btn">CUSTOMIZE</button>
-                <button id="shop-btn">SHOP</button>
-            </div>
-        </div>
+                        <div id="main-menu" class="overlay">
+                            <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
+                            <h1>GEOMETRIC RHYTHM</h1>
+                            <div class="song-selector-row">
+                                <label for="song-selector">SONG</label>
+                                <select id="song-selector"></select>
+                            </div>
+                            <div class="menu-buttons">
+                                <button id="play-btn">PLAY</button>
+                                <button id="customize-btn">CUSTOMIZE</button>
+                                <button id="shop-btn">SHOP</button>
+                            </div>
+                        </div>
 
-        <div id="level-menu" class="overlay hidden">
-            <div class="menu-topbar">
-                <button id="exit-levels-btn">&larr; EXIT LEVELS</button>
-                <h1>SELECT LEVEL</h1>
-                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
-            </div>
-            <div id="level-grid"></div>
-        </div>
+                        <div id="level-menu" class="overlay hidden">
+                            <div class="menu-topbar">
+                                <button id="exit-levels-btn">&larr; EXIT LEVELS</button>
+                                <h1>SELECT LEVEL</h1>
+                                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
+                            </div>
+                            <div id="level-grid"></div>
+                        </div>
 
-        <div id="customize-menu" class="overlay hidden">
-            <div class="menu-topbar">
-                <button id="customize-back-btn">&larr; BACK</button>
-                <h1>CUSTOMIZE</h1>
-                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
-            </div>
-            <div class="customize-tabs" id="customize-tabs"></div>
-            <div id="customize-grid"></div>
-        </div>
+                        <div id="customize-menu" class="overlay hidden">
+                            <div class="menu-topbar">
+                                <button id="customize-back-btn">&larr; BACK</button>
+                                <h1>CUSTOMIZE</h1>
+                                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
+                            </div>
+                            <div class="customize-tabs" id="customize-tabs"></div>
+                            <div id="customize-grid"></div>
+                        </div>
 
-        <div id="shop-menu" class="overlay hidden">
-            <div class="menu-topbar">
-                <button id="shop-back-btn">&larr; BACK</button>
-                <h1>SHOP</h1>
-                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
-            </div>
-            <div class="customize-tabs" id="shop-tabs"></div>
-            <div id="shop-grid"></div>
-        </div>
+                        <div id="shop-menu" class="overlay hidden">
+                            <div class="menu-topbar">
+                                <button id="shop-back-btn">&larr; BACK</button>
+                                <h1>SHOP</h1>
+                                <div class="currency-display">♥ 0 &nbsp;◆ 0</div>
+                            </div>
+                            <div class="customize-tabs" id="shop-tabs"></div>
+                            <div id="shop-grid"></div>
+                        </div>
 
-        <div id="game-over" class="overlay hidden">
-            <div class="panel">
-                <h2 id="death-msg">TRY AGAIN</h2>
-                <div id="attempt-display">ATTEMPT 1</div>
-                <div class="menu-buttons">
-                    <button id="restart-btn">REPLAY</button>
-                    <button id="menu-btn">LEVELS</button>
-                    <button id="feedback-btn">SUGGESTIONS, FEEDBACK &amp; MORE</button>
+                        <div id="game-over" class="overlay hidden">
+                            <div class="panel">
+                                <h2 id="death-msg">TRY AGAIN</h2>
+                                <div id="attempt-display">ATTEMPT 1</div>
+                                <div class="menu-buttons">
+                                    <button id="restart-btn">REPLAY</button>
+                                    <button id="menu-btn">LEVELS</button>
+                                    <button id="feedback-btn">SUGGESTIONS, FEEDBACK &amp; MORE</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="level-complete" class="overlay hidden">
+                            <div class="panel">
+                                <h2>LEVEL COMPLETE!</h2>
+                                <div id="complete-stars"></div>
+                                <div id="complete-progress">100%</div>
+                                <div id="complete-unlock" class="sub-note"></div>
+                                <div class="menu-buttons">
+                                    <button id="complete-replay-btn">REPLAY</button>
+                                    <button id="complete-menu-btn">LEVELS</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="feedback-overlay" class="overlay hidden">
+                            <div class="panel feedback-panel">
+                                <h2>SUGGESTIONS, FEEDBACK &amp; MORE</h2>
+                                <p class="feedback-note">Tell me what broke, what confused you, or what you'd love to see next. The form opens in a new tab.</p>
+                                <a class="feedback-open" href="https://docs.google.com/forms/d/e/1FAIpQLSfHtF4FDY2DHXI8NNPhvM4j6tvYzHIWeBlbGw7Aly58lAXVkA/viewform" target="_blank" rel="noopener">OPEN THE FORM &#8599;</a>
+                                <div class="menu-buttons">
+                                    <button id="feedback-close-btn">CLOSE</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div id="level-complete" class="overlay hidden">
-            <div class="panel">
-                <h2>LEVEL COMPLETE!</h2>
-                <div id="complete-stars"></div>
-                <div id="complete-progress">100%</div>
-                <div id="complete-unlock" class="sub-note"></div>
-                <div class="menu-buttons">
-                    <button id="complete-replay-btn">REPLAY</button>
-                    <button id="complete-menu-btn">LEVELS</button>
-                </div>
-            </div>
-        </div>
-
-        <div id="feedback-overlay" class="overlay hidden">
-            <div class="panel feedback-panel">
-                <h2>SUGGESTIONS, FEEDBACK &amp; MORE</h2>
-                <div class="feedback-frame-wrap">
-                    <iframe id="feedback-frame" class="feedback-frame"
-                            title="Suggestions and reports form"
-                            data-src="https://docs.google.com/forms/d/e/1FAIpQLSfHtF4FDY2DHXI8NNPhvM4j6tvYzHIWeBlbGw7Aly58lAXVkA/viewform?embedded=true"
-                            frameborder="0" marginheight="0" marginwidth="0"></iframe>
-                </div>
-                <p class="feedback-note">Fill the form right here — or open it in a new tab if it does not load.</p>
-                <div class="menu-buttons">
-                    <button id="feedback-close-btn">CLOSE</button>
-                    <button id="feedback-ext-btn">OPEN IN BROWSER</button>
-                </div>
-            </div>
-        </div>
+            <figcaption class="plaque">
+                <span class="plaque__title">GEOMETRIC RHYTHM</span>
+                <span class="plaque__meta">A neon rhythm platformer · play in the browser</span>
+            </figcaption>
+        </figure>
     </div>
 
     <div id="flash-msg" class="hidden"></div>
