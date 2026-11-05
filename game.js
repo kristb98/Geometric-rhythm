@@ -619,6 +619,7 @@ function showCustomizeMenu() {
     hideOverlays('customize-menu');
     showHUD(false);
     gameState = 'MENU';
+    loadMenuSong();
     buildCustomizeMenu();
 }
 
@@ -628,6 +629,7 @@ function showShopMenu() {
     hideOverlays('shop-menu');
     showHUD(false);
     gameState = 'MENU';
+    loadMenuSong();
     buildShopMenu();
 }
 
@@ -1147,10 +1149,21 @@ function buildSongSelector() {
 
 // Music
 const MENU_SONG_SRC = 'audio/menu-song.wav';
+const MENU_LOOP_GAP_MS = 3000;
+let menuSongGapTimer = null;
+
+function cancelMenuSongGap() {
+    if (menuSongGapTimer) {
+        clearTimeout(menuSongGapTimer);
+        menuSongGapTimer = null;
+    }
+}
 
 function playMusic(src, restart = false) {
     const music = document.getElementById('bg-music');
     if (!music || muted) return;
+    cancelMenuSongGap();
+    music.loop = true;
     if (restart) {
         music.currentTime = 0;
         music.play().catch(() => {});
@@ -1180,9 +1193,18 @@ function isInMenu() {
     });
 }
 
+function isOnMainMenu() {
+    const el = document.getElementById('main-menu');
+    return el && !el.classList.contains('hidden');
+}
+
 function playMenuSong() {
     const music = document.getElementById('bg-music');
     if (!music || muted || selectedSong) return;
+    cancelMenuSongGap();
+    // Only the idle main menu gets the pause between repeats. Every other
+    // menu (level select, customize, shop) keeps the song running seamlessly.
+    music.loop = !isOnMainMenu();
     if (music.dataset.track === MENU_SONG_SRC) {
         if (music.paused) music.play().catch(() => {});
         return;
@@ -1191,6 +1213,21 @@ function playMenuSong() {
     music.src = MENU_SONG_SRC;
     music.load();
     music.play().catch(() => {});
+}
+
+// In the main menu the song plays once, rests for a moment, then repeats.
+const bgMusic = document.getElementById('bg-music');
+if (bgMusic) {
+    bgMusic.addEventListener('ended', () => {
+        if (bgMusic.dataset.track !== MENU_SONG_SRC) return;
+        if (muted || selectedSong || !isOnMainMenu()) return;
+        menuSongGapTimer = setTimeout(() => {
+            menuSongGapTimer = null;
+            if (muted || selectedSong || !isOnMainMenu()) return;
+            bgMusic.currentTime = 0;
+            bgMusic.play().catch(() => {});
+        }, MENU_LOOP_GAP_MS);
+    });
 }
 
 function loadMenuSong() {
