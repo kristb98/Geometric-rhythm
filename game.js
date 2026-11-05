@@ -598,7 +598,7 @@ function showMainMenu() {
     showHUD(false);
     canvas.style.pointerEvents = 'none';
     gameState = 'MENU';
-    stopMusic();
+    loadMenuSong();
     updateCurrencyDisplay();
 }
 
@@ -608,7 +608,7 @@ function showLevelMenu() {
     hideOverlays('level-menu');
     showHUD(false);
     gameState = 'MENU';
-    stopMusic();
+    loadMenuSong();
     buildLevelMenu(); // rebuild so newly completed levels appear
     updateCurrencyDisplay();
 }
@@ -1137,15 +1137,17 @@ function buildSongSelector() {
     sel.onchange = () => {
         selectedSong = sel.value || null;
         // Preview the chosen song right in the menu
-        if (selectedSong && !muted) {
+        if (selectedSong) {
             playMusic(selectedSong);
         } else {
-            stopMusic();
+            loadMenuSong();
         }
     };
 }
 
 // Music
+const MENU_SONG_SRC = 'audio/menu-song.wav';
+
 function playMusic(src, restart = false) {
     const music = document.getElementById('bg-music');
     if (!music || muted) return;
@@ -1154,8 +1156,11 @@ function playMusic(src, restart = false) {
         music.play().catch(() => {});
         return;
     }
-    music.src = src;
-    music.load();
+    if (music.dataset.track !== src) {
+        music.dataset.track = src;
+        music.src = src;
+        music.load();
+    }
     music.play().catch(() => {});
 }
 
@@ -1164,6 +1169,54 @@ function stopMusic() {
     if (!music) return;
     music.pause();
 }
+
+// Main menu song: the Chrome Music Lab Song Maker track
+// (https://musiclab.chromeexperiments.com/Song-Maker/embed/6176754984681472)
+// rendered to a local file, so it can loop and be controlled from here.
+function isInMenu() {
+    return ['main-menu', 'level-menu'].some(id => {
+        const el = document.getElementById(id);
+        return el && !el.classList.contains('hidden');
+    });
+}
+
+function playMenuSong() {
+    const music = document.getElementById('bg-music');
+    if (!music || muted || selectedSong) return;
+    if (music.dataset.track === MENU_SONG_SRC) {
+        if (music.paused) music.play().catch(() => {});
+        return;
+    }
+    music.dataset.track = MENU_SONG_SRC;
+    music.src = MENU_SONG_SRC;
+    music.load();
+    music.play().catch(() => {});
+}
+
+function loadMenuSong() {
+    if (!isInMenu()) return;
+    if (selectedSong) {
+        playMusic(selectedSong);
+    } else {
+        playMenuSong();
+    }
+}
+
+// Browsers can keep audio silent until the visitor has interacted with the
+// page once. Retrying on the first gesture starts the song without needing
+// a dedicated play button.
+let menuSongRetried = false;
+function retryMenuSongOnFirstGesture() {
+    if (menuSongRetried) return;
+    menuSongRetried = true;
+    loadMenuSong();
+}
+['pointerdown', 'keydown', 'touchstart'].forEach(evt => {
+    window.addEventListener(evt, retryMenuSongOnFirstGesture, { passive: true });
+});
+
+// Start after the first paint so the menu itself appears immediately.
+window.addEventListener('load', () => setTimeout(loadMenuSong, 600));
 
 // Song Selector (original GD tracks + custom wild picks)
 const SONGS = [
@@ -1200,7 +1253,9 @@ bindEl('mute-btn', () => {
     if (music) {
         if (muted) {
             music.pause();
-        } else if (gameState === 'PLAYING' || gameState === 'MENU') {
+        } else if (gameState === 'MENU') {
+            loadMenuSong();
+        } else if (gameState === 'PLAYING') {
             music.play().catch(() => {});
         }
     }
