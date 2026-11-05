@@ -14,7 +14,11 @@ const GRAVITY = 0.82;
 const JUMP_FORCE = -12.5;
 const GROUND_Y = 500;
 const TILE_SIZE = 30;
-const PAD_FORCE = { YELLOW: 14.98, PINK: 9.24, RED: 20.0 };
+const PAD_FORCE = { YELLOW: 14.98, PINK: 14.98, RED: 20.0 };
+// Level-design legend: "." is the pad, each "," is one empty block it must
+// clear. Pads used to carry the cube across 3 blocks; stretching the jump's
+// airtime by 4/3 gives them 4 blocks of horizontal reach for the same apex.
+const PAD_REACH_MULT = 4 / 3;
 
 // Game State
 let gameState = 'MENU'; // MENU, PLAYING, GAMEOVER, COMPLETE
@@ -51,6 +55,7 @@ class Player {
         this.trail = [];
         this.jumpBuffer = 0;
         this.timeScale = 1;
+        this.padStretch = 1;
     }
 
     update(dt) {
@@ -86,6 +91,7 @@ class Player {
             this.y = GROUND_Y - effectiveSize;
             this.vy = 0;
             this.isGrounded = true;
+            this.padStretch = 1;
             if (this.mode === 'CUBE' || this.mode === 'ROBOT') this.angle = Math.round(this.angle / 90) * 90;
             if (this.jumpBuffer > 0 && (this.mode === 'CUBE' || this.mode === 'ROBOT')) {
                 this.jumpBuffer = 0;
@@ -95,6 +101,7 @@ class Player {
             this.y = 50;
             this.vy = 0;
             this.isGrounded = true;
+            this.padStretch = 1;
             if (this.jumpBuffer > 0 && (this.mode === 'CUBE' || this.mode === 'ROBOT')) {
                 this.jumpBuffer = 0;
                 this.jump();
@@ -112,7 +119,8 @@ class Player {
     }
 
     updateCube(dt, timeScale) {
-        this.vy += (GRAVITY * this.gravity) * timeScale;
+        const gravity = GRAVITY / (this.padStretch * this.padStretch);
+        this.vy += (gravity * this.gravity) * timeScale;
         if (!this.isGrounded) this.angle += (this.vy * 2) * timeScale;
     }
 
@@ -279,6 +287,7 @@ class Player {
                     this.y = obj.y - ps;
                     this.vy = 0;
                     this.isGrounded = true;
+                    this.padStretch = 1;
                     return;
                 }
             } else {
@@ -287,6 +296,7 @@ class Player {
                     this.y = obj.y + obj.size;
                     this.vy = 0;
                     this.isGrounded = true;
+                    this.padStretch = 1;
                     return;
                 }
             }
@@ -338,6 +348,14 @@ class Player {
                sy < ry + rh && sy + ss > ry;
     }
 
+    launchFromPad(force) {
+        // Same apex as before, but the arc lasts 4/3 longer so the horizontal
+        // reach covers four empty blocks instead of three.
+        this.padStretch = PAD_REACH_MULT;
+        this.vy = -(force / PAD_REACH_MULT) * this.gravity;
+        this.isGrounded = false;
+    }
+
     handleObjectEffect(obj) {
         // Pads & orbs re-arm via _overlap in checkCollisions, so they must not be
         // gated by the persistent activated flag. Portals are still one-shot.
@@ -381,23 +399,19 @@ class Player {
                 obj.activated = true;
                 break;
             case 'PAD_JUMP': 
-                this.vy = -PAD_FORCE.YELLOW * this.gravity; 
-                this.isGrounded = false;
+                this.launchFromPad(PAD_FORCE.YELLOW);
                 obj.activated = true;
                 break;
             case 'PAD_YELLOW': 
-                this.vy = -PAD_FORCE.YELLOW * this.gravity; 
-                this.isGrounded = false;
+                this.launchFromPad(PAD_FORCE.YELLOW);
                 obj.activated = true;
                 break;
             case 'PAD_PINK': 
-                this.vy = -PAD_FORCE.PINK * this.gravity; 
-                this.isGrounded = false;
+                this.launchFromPad(PAD_FORCE.PINK);
                 obj.activated = true;
                 break;
             case 'PAD_RED': 
-                this.vy = -PAD_FORCE.RED * this.gravity; 
-                this.isGrounded = false;
+                this.launchFromPad(PAD_FORCE.RED);
                 obj.activated = true;
                 break;
             case 'TRIGGER_MOVE': this.activateMoveTrigger(obj); break;
